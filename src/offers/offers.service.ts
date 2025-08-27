@@ -1,0 +1,374 @@
+import { BadRequestException, Injectable } from "@nestjs/common";
+
+import {
+    CreateMultipleOffersDto,
+    CreateNewPartnerDto,
+    CreateSingleOfferAppLinkDto,
+    CreateSingleOfferDto,
+} from "./dto/create-offers.dto";
+import { KeitaroService } from "../keitaro/keitaro.service";
+import { generateUniqueAlias } from "../utils/generateUniqueAlias";
+import { wrapWithErrorHandler } from "../utils/error-wrapper";
+import { IOffer } from "./interfaces/offer.interface";
+import { IAffiliateNetwork } from "./interfaces/affiliate-network.interface";
+
+@Injectable()
+export class OffersService {
+    constructor(private readonly keitaroService: KeitaroService) {}
+
+    async getOffers() {
+        const getOffersWithErrorHandler = wrapWithErrorHandler(
+            this.getOffersInternal.bind(this),
+            {
+                functionName: "OffersService.getOffers",
+                additionalData: { endpoint: "GET /offers" },
+            },
+        );
+
+        return getOffersWithErrorHandler();
+    }
+
+    async createOffer(body: CreateMultipleOffersDto) {
+        const createOfferWithErrorHandler = wrapWithErrorHandler(
+            this.createOfferInternal.bind(this),
+            {
+                functionName: "OffersService.createOffer",
+                additionalData: { endpoint: "POST /offers/create/multiple" },
+            },
+        );
+
+        return createOfferWithErrorHandler(body);
+    }
+
+    async createSingleOffer(body: CreateSingleOfferDto) {
+        const createSingleOfferWithErrorHandler = wrapWithErrorHandler(
+            this.createSingleOfferInternal.bind(this),
+            {
+                functionName: "OffersService.createSingleOffer",
+                additionalData: { endpoint: "POST /offers/create/single" },
+            },
+        );
+
+        return createSingleOfferWithErrorHandler(body);
+    }
+
+    async createSingleOfferAppLink(body: CreateSingleOfferAppLinkDto) {
+        const createSingleOfferAppLinkWithErrorHandler = wrapWithErrorHandler(
+            this.createSingleOfferAppLinkInternal.bind(this),
+            {
+                functionName: "OffersService.createSingleOfferAppLink",
+                additionalData: {
+                    endpoint: "POST /offers/create/single/app-link",
+                },
+            },
+        );
+
+        return createSingleOfferAppLinkWithErrorHandler(body);
+    }
+
+    async createNewPartner(body: CreateNewPartnerDto) {
+        const createNewPartnerWithErrorHandler = wrapWithErrorHandler(
+            this.createNewPartnerInternal.bind(this),
+            {
+                functionName: "OffersService.createNewPartner",
+                additionalData: { endpoint: "POST /offers/create/new-partner" },
+            },
+        );
+
+        return createNewPartnerWithErrorHandler(body);
+    }
+
+    async updateOffer(id: string, body: any) {
+        const updateOfferWithErrorHandler = wrapWithErrorHandler(
+            this.updateOfferInternal.bind(this),
+            {
+                functionName: "OffersService.updateOffer",
+                additionalData: { endpoint: `PATCH /offers/update/${id}` },
+            },
+        );
+
+        return updateOfferWithErrorHandler(id, body);
+    }
+
+    async deleteOffer(id: string) {
+        const deleteOfferWithErrorHandler = wrapWithErrorHandler(
+            this.deleteOfferInternal.bind(this),
+            {
+                functionName: "OffersService.deleteOffer",
+                additionalData: { endpoint: `DELETE /offers/${id}` },
+            },
+        );
+
+        return deleteOfferWithErrorHandler(id);
+    }
+
+    private async getOffersInternal() {
+        return await this.keitaroService.getOffers();
+    }
+
+    private async createOfferInternal(body: CreateMultipleOffersDto) {
+        const {
+            name,
+            affiliate_network_id,
+            payout_value,
+            payout_currency,
+            country,
+            notes,
+            lands,
+            payout_auto,
+        } = body;
+
+        if (
+            !name ||
+            !affiliate_network_id ||
+            !payout_value ||
+            !payout_currency ||
+            !country ||
+            !lands
+        ) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        const numberOfLands = Object.keys(lands).length;
+
+        if (numberOfLands < 1 || numberOfLands > 10) {
+            throw new BadRequestException(
+                "The 'lands' field must contain between 1 and 10 key-value pairs.",
+            );
+        }
+
+        const affiliateNetwork: IAffiliateNetwork =
+            await this.keitaroService.getAffiliateNetworkById(
+                affiliate_network_id,
+            );
+
+        const createdOffers = [];
+
+        for (const landKey in lands) {
+            if (lands[landKey]?.error) {
+                continue;
+            }
+            const offerName = `${name} | ${landKey}`;
+            const offerParams = this.buildOfferParams({
+                name: `${offerName} | ${affiliateNetwork.name}`,
+                action_payload: lands[landKey],
+                affiliate_network_id,
+                payout_value,
+                payout_currency,
+                country,
+                notes: notes,
+                payout_auto: payout_auto === "false" ? false : true,
+                group_id: 20,
+            });
+
+            const offerData: IOffer =
+                await this.keitaroService.createOffer(offerParams);
+
+            const updatedOfferParams = {
+                name: `${offerData.id} | ${offerName}`,
+            };
+            const updatedOfferData = await this.keitaroService.updateOffer(
+                offerData.id,
+                updatedOfferParams,
+            );
+            createdOffers.push(updatedOfferData.name);
+        }
+        return { createdOffers };
+    }
+
+    private async createSingleOfferInternal(body: CreateSingleOfferDto) {
+        const { app_name, bundle_id, attribution_type, attribution_link } =
+            body;
+
+        const offerName = `${attribution_type} ${bundle_id} (${app_name})`;
+        const offerParams = this.buildOfferParams({
+            name: offerName,
+            action_payload: attribution_link,
+            affiliate_network_id: attribution_type === "affise" ? 444 : 443,
+            group_id: 10,
+        });
+
+        return await this.keitaroService.createOffer(offerParams);
+    }
+
+    private async createSingleOfferAppLinkInternal(
+        body: CreateSingleOfferAppLinkDto,
+    ) {
+        const { group_id, name, link, service_template_id } = body;
+
+        const offerParams = this.buildOfferParams({
+            name,
+            group_id,
+            action_payload: link,
+            affiliate_network_id: service_template_id,
+        });
+
+        return await this.keitaroService.createOffer(offerParams);
+    }
+
+    private async createNewPartnerInternal(body: CreateNewPartnerDto) {
+        const { partnerName, mail, urlParams, testLink, testLinkGeo } = body;
+
+        const allAffiliateNetworks =
+            await this.keitaroService.getAffiliateNetworks();
+
+        let maxPartnerNumber = 0;
+
+        allAffiliateNetworks.forEach((allAffiliateNetwork) => {
+            if (allAffiliateNetwork.name.includes(partnerName)) {
+                const [, count] = allAffiliateNetwork.name.split(" | ");
+                if (count > maxPartnerNumber) maxPartnerNumber = count;
+            }
+        });
+
+        const affiliateNetworkBody = {
+            name: `${partnerName} | ${++maxPartnerNumber} | ${mail}`,
+            postback_url: "https://traffgrunt.space/e52f0b4/postback",
+            offer_param: urlParams,
+            notes: `1. Offer's link: link format - ${testLink};`,
+        };
+        const updatePartnerName = (networkName) => {
+            const regex =
+                /^(.+?)\s*\|\s*(\d+)\s*\|\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/;
+
+            const match = networkName.match(regex);
+            return match ? `${match[1].trim()} | ${match[2].trim()}` : null;
+        };
+
+        const affiliateNetworkResponse =
+            await this.keitaroService.createAffiliateNetwork(
+                affiliateNetworkBody,
+            );
+        const updatedAffiliateNetworksNames = [
+            ...allAffiliateNetworks,
+            affiliateNetworkResponse,
+        ]
+            .map((network) => updatePartnerName(network.name))
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+        const offerBody = this.buildOfferParams({
+            name: `Test ${partnerName}`,
+            group_id: 20,
+            action_payload: testLink,
+            affiliate_network_id: affiliateNetworkResponse.id,
+            payout_currency: "EUR",
+            payout_auto: true,
+            country: [testLinkGeo],
+            notes: "Test",
+            action_options: [],
+            values: "",
+        });
+
+        const offerResponse = await this.keitaroService.createOffer(offerBody);
+        const alias = generateUniqueAlias();
+        const createdCampaign = await this.keitaroService.createCampaign({
+            name: `Test ${partnerName}`,
+            alias,
+            traffic_source_id: 22,
+            group_id: 8,
+        });
+
+        const streamData = this.buildStreamData(
+            createdCampaign.id,
+            offerResponse.id,
+        );
+
+        await this.keitaroService.createStream(createdCampaign.id, streamData);
+
+        return {
+            name: createdCampaign.name,
+            id: createdCampaign.id,
+            alias,
+            user_id: createdCampaign.parameters.sub_id_15.placeholder,
+            updatedAffiliateNetworksNames: [
+                ...new Set(updatedAffiliateNetworksNames),
+            ],
+            newPartnerName: updatePartnerName(affiliateNetworkResponse.name),
+            newPartnerId: affiliateNetworkResponse.id,
+        };
+    }
+
+    private async updateOfferInternal(id: string, body: any) {
+        return await this.keitaroService.updateOffer(Number(id), body);
+    }
+
+    private async deleteOfferInternal(id: string) {
+        return await this.keitaroService.deleteOffer(Number(id));
+    }
+
+    async deleteAffiliateNetwork(id: string) {
+        const deleteAffiliateNetworkWithErrorHandler = wrapWithErrorHandler(
+            this.deleteAffiliateNetworkInternal.bind(this),
+            {
+                functionName: "OffersService.deleteAffiliateNetwork",
+                additionalData: {
+                    endpoint: `DELETE /affiliate_networks/${id}`,
+                },
+            },
+        );
+        return deleteAffiliateNetworkWithErrorHandler(id);
+    }
+
+    private async deleteAffiliateNetworkInternal(id: string) {
+        return await this.keitaroService.deleteAffiliateNetwork(Number(id));
+    }
+
+    private buildOfferParams(customParams: any) {
+        return {
+            name: customParams.name,
+            group_id: customParams.group_id || 20,
+            offer_type: "external",
+            action_type: "http",
+            action_payload: customParams.action_payload,
+            affiliate_network_id: customParams.affiliate_network_id,
+            payout_value: customParams.payout_value || 0,
+            payout_currency: customParams.payout_currency || "USD",
+            payout_type: "CPA",
+            state: "active",
+            payout_auto:
+                customParams.payout_auto !== undefined
+                    ? customParams.payout_auto
+                    : false,
+            payout_upsell: false,
+            country: customParams.country || [],
+            notes: customParams.notes || "",
+            archive: {},
+            conversion_cap_enabled: false,
+            daily_cap: 0,
+            conversion_timezone: "Europe/Kyiv",
+            alternative_offer_id: 0,
+            action_options: customParams.action_options || [],
+            values: customParams.values || "",
+        };
+    }
+
+    private buildStreamData(campaignId: number, offerId: number) {
+        return {
+            type: "regular",
+            name: "Flow 2",
+            campaign_id: campaignId,
+            position: 1,
+            action_options: null,
+            comments: "",
+            state: "active",
+            action_type: "http",
+            action_payload: "",
+            schema: "landings",
+            collect_clicks: true,
+            filter_or: false,
+            weight: 100,
+            offer_selection: "before_click",
+            filters: [],
+            triggers: [],
+            landings: [],
+            offers: [
+                {
+                    offer_id: offerId,
+                    state: "active",
+                    share: 100,
+                },
+            ],
+        };
+    }
+}
