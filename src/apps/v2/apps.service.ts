@@ -32,7 +32,21 @@ export class AppsV2Service {
     private async createAppInternal(body: CreateAppDto) {
         const results: Record<string, { res: any; path: string }> = {};
         try {
-            const { name, bundle_id, sub_id, postback_url, isIos } = body;
+            const {
+                name,
+                bundle_id,
+                sub_id,
+                postback_url,
+                isIos,
+                campaign_id,
+            } = body;
+
+            const campaignId =
+                campaign_id || isIos
+                    ? this.configService.get("keitaro.iosCloCampaignTemplateId")
+                    : this.configService.get(
+                          "keitaro.androidCloCampaignTemplateId",
+                      );
 
             if (!name || !bundle_id) {
                 throw new BadRequestException("Missing required fields.");
@@ -92,7 +106,7 @@ export class AppsV2Service {
                         };
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${isIos ? this.configService.get("keitaro.iosCloCampaignTemplateId") : this.configService.get("keitaro.androidCloCampaignTemplateId")}/clone`,
+                    path: `admin_api/v1/campaigns/${campaignId}/clone`,
                 },
                 {
                     key: "getCLOCampaignFalseStreamId",

@@ -11,6 +11,7 @@ import { generateUniqueAlias } from "../utils/generateUniqueAlias";
 import { wrapWithErrorHandler } from "../utils/error-wrapper";
 import { IOffer } from "./interfaces/offer.interface";
 import { IAffiliateNetwork } from "./interfaces/affiliate-network.interface";
+import { CreateRentOfferDto } from "./dto/create-rent-offer.dto";
 
 @Injectable()
 export class OffersService {
@@ -100,6 +101,36 @@ export class OffersService {
         );
 
         return deleteOfferWithErrorHandler(id);
+    }
+
+    async createRentOffer(body: CreateRentOfferDto) {
+        const createRentOfferWithErrorHandler = wrapWithErrorHandler(
+            this.createRentOfferInternal.bind(this),
+            {
+                functionName: "OffersService.createRentOffer",
+                additionalData: { endpoint: "POST /offers/create/rent-offer" },
+            },
+        );
+        return createRentOfferWithErrorHandler(body);
+    }
+
+    private async createRentOfferInternal(body: CreateRentOfferDto) {
+        const { name, domain } = body;
+
+        if (!name || !domain) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        const offerParams = {
+            name: `[Rent] iOS ${name} ${domain} ${Date.now()}`,
+            group_id: 152,
+            offer_type: "external",
+            action_type: "http",
+            action_payload: `https://${domain}/{sub9}?sub2={sub2}&sub3={sub3}&sub4={sub4}&sub5={sub5}&sub6={sub6}&sub7={sub7}&sub8={sub8}&sub9={sub9}&external_id={subid}&bundle_id={bundle_id}&naming={naming}`,
+            state: "active",
+        };
+
+        return await this.keitaroService.createRentOffer(offerParams);
     }
 
     private async getOffersInternal() {
@@ -223,7 +254,7 @@ export class OffersService {
 
         const affiliateNetworkBody = {
             name: `${partnerName} | ${++maxPartnerNumber} | ${mail}`,
-            postback_url: "https://traffgrunt.space/e52f0b4/postback",
+            postback_url: "https://flowgather.site/e52f0b4/postback",
             offer_param: urlParams,
             notes: `1. Offer's link: link format - ${testLink};`,
         };

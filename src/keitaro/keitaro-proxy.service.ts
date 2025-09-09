@@ -15,6 +15,7 @@ export class KeitaroProxyService {
     private readonly ALLOWED_ENDPOINTS: KeitaroAllowedEndpoints = {
         campaigns: ["GET"],
         domains: ["GET"],
+        streams: ["GET"],
         "report/build": ["POST"],
     };
 

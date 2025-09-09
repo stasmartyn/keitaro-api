@@ -1,4 +1,4 @@
-import { IsBoolean, IsString } from "class-validator";
+import { IsBoolean, IsNumber, IsString } from "class-validator";
 
 export class CreateAppDto {
     @IsString()
@@ -18,4 +18,7 @@ export class CreateAppDto {
 
     @IsBoolean()
     isIos: boolean;
+
+    @IsNumber()
+    campaign_id: number;
 }

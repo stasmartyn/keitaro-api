@@ -15,6 +15,7 @@ import {
     CreateSingleOfferAppLinkDto,
     CreateSingleOfferDto,
 } from "./dto/create-offers.dto";
+import { CreateRentOfferDto } from "./dto/create-rent-offer.dto";
 
 @Controller("offers")
 export class OffersController {
@@ -33,6 +34,11 @@ export class OffersController {
     @Post("create/single")
     async createSingleOffer(@Body() body: CreateSingleOfferDto) {
         return this.offersService.createSingleOffer(body);
+    }
+
+    @Post("create/rent-offer")
+    async createRentOffer(@Body() body: CreateRentOfferDto) {
+        return this.offersService.createRentOffer(body);
     }
 
     @Post("create/single/app-link")

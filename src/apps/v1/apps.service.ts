@@ -17,6 +17,7 @@ import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
+import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
 
 @Injectable()
 export class AppsService {
@@ -53,6 +54,19 @@ export class AppsService {
         );
 
         return createAppWithErrorHandler(body);
+    }
+
+    async createRentCampaign(body: CreateRentCampaignDto) {
+        const createRentCampaignWithErrorHandler = wrapWithErrorHandler(
+            this.createRentCampaignInternal.bind(this),
+            {
+                functionName: "AppsService.createRentCampaign",
+                additionalData: {
+                    endpoint: "POST /v1/apps/create-rent-campaign",
+                },
+            },
+        );
+        return createRentCampaignWithErrorHandler(body);
     }
 
     async copyCampaign(body: CopyCampaignDto) {
@@ -133,6 +147,19 @@ export class AppsService {
         );
 
         return deleteTrafficSourceWithErrorHandler(id);
+    }
+
+    private async createRentCampaignInternal(body: CreateRentCampaignDto) {
+        const { groupId, offerId, name } = body;
+        if (!groupId || !offerId || !name) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        return await this.keitaroClient.createRentCampaign(
+            groupId,
+            offerId,
+            name,
+        );
     }
 
     private async deleteCampaignInternal(id: string) {

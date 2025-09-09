@@ -7,6 +7,7 @@ import { CopyCampaignDto } from "../dto/copy-campaign.dto";
 import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
+import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -20,6 +21,11 @@ export class AppsController {
     @Post("create-campaign")
     async createApp(@Body() body: CreateAppDto) {
         return this.appsService.createApp(body);
+    }
+
+    @Post("create-rent-campaign")
+    async createRentCampaign(@Body() body: CreateRentCampaignDto) {
+        return this.appsService.createRentCampaign(body);
     }
 
     @Post("copy-campaign")

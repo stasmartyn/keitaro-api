@@ -11,6 +11,7 @@ import {
     noOrgStreamParams,
 } from "./constants/stream-params";
 import { CreateCampaignInterface } from "./interfaces/create-campaign.interface";
+import { generateUniqueAlias } from "../utils/generateUniqueAlias";
 
 @Injectable()
 export class KeitaroService {
@@ -322,6 +323,106 @@ export class KeitaroService {
         });
 
         return response.data;
+    }
+
+    async createGroup(name: string, type: string) {
+        const url = this.buildUrl("admin_api/v1/groups");
+        const response = await axios.post(
+            url,
+            { name, type },
+            {
+                headers: this.generateHeaders(),
+            },
+        );
+        return response.data;
+    }
+
+    async createRentOffer(offerParams: Record<string, any>) {
+        const url = this.buildUrl("admin_api/v1/offers");
+        const response = await axios.post(url, offerParams, {
+            headers: this.generateHeaders(),
+        });
+
+        return response.data;
+    }
+
+    async createRentCampaign(groupId: number, offerId: number, name: string) {
+        const cloneUrl = this.buildUrl(`admin_api/v1/campaigns/4509/clone`);
+
+        try {
+            const { data: template } = await axios.post(
+                cloneUrl,
+                {},
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            const alias = generateUniqueAlias();
+            const newCampaignData = {
+                alias,
+                group_id: groupId,
+                traffic_source_id: 918,
+                name: `[Rent client] iOS ${name} ${alias}`,
+                state: "active",
+            };
+            const campaignUrl = this.buildUrl(
+                `admin_api/v1/campaigns/${template[0].id}`,
+            );
+            const { data: campaign } = await axios.put(
+                campaignUrl,
+                newCampaignData,
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            const streamsUrl = this.buildUrl(
+                `admin_api/v1/campaigns/${campaign.id}/streams`,
+            );
+            const { data: stream } = await axios.get(streamsUrl, {
+                headers: this.generateHeaders(),
+            });
+            const defaultStream = stream.find((s) => s.name === "Default");
+
+            if (!defaultStream) {
+                console.error("Default stream not found");
+                return;
+            }
+
+            const streamUrl = this.buildUrl(
+                `admin_api/v1/streams/${defaultStream.id}`,
+            );
+            await axios.put(
+                streamUrl,
+                {
+                    ...defaultStream,
+                    campaign_id: campaign.id,
+                    weight: 100,
+                    offers: [
+                        {
+                            offer_id: offerId,
+                            share: 100,
+                            state: "active",
+                        },
+                    ],
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return {
+                alias: campaign.alias,
+                clickApiToken: campaign.token,
+            };
+        } catch (error) {
+            console.error(
+                "Failed to create rent campaign:",
+                error?.response?.data || error,
+            );
+            throw error;
+        }
     }
 
     private buildFalseFilters(isIos: boolean): string[] {
