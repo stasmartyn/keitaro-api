@@ -12,7 +12,6 @@ import {
 } from "./constants/stream-params";
 import { CreateCampaignInterface } from "./interfaces/create-campaign.interface";
 import { generateUniqueAlias } from "../utils/generateUniqueAlias";
-import { UpdateCampaignDto } from "../apps/dto/update-campaign.dto";
 
 @Injectable()
 export class KeitaroService {
@@ -344,7 +343,7 @@ export class KeitaroService {
         }
     }
 
-    async updateCampaign(campaignId: number, updateData: UpdateCampaignDto) {
+    async updateCampaign(campaignId: number, updateData: any) {
         try {
             const updates: any[] = [];
 
