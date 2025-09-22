@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { KeitaroService } from "../../keitaro/keitaro.service";
+import { CampaignDataService } from "../campaign-data.service";
 import { wrapWithErrorHandler } from "../../utils/error-wrapper";
 import { Logger } from "../../utils/logger";
 import { CreateAppDto } from "../dto/create-app.dto";
@@ -18,11 +19,13 @@ import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
 import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
+import { UpdateCampaignDto } from "../dto/update-campaign.dto";
 
 @Injectable()
 export class AppsService {
     constructor(
         private readonly keitaroClient: KeitaroService,
+        private readonly campaignDataService: CampaignDataService,
         private readonly configService: ConfigService,
         @Inject(ProvidersDB.CAMPAIGN_USER)
         private readonly campaignUserModel: Model<CampaignUserDocument>,
@@ -149,6 +152,34 @@ export class AppsService {
         return deleteTrafficSourceWithErrorHandler(id);
     }
 
+    async getFullCampaignInfo(id: string) {
+        const getFullCampaignInfoWithErrorHandler = wrapWithErrorHandler(
+            this.getFullCampaignInfoInternal.bind(this),
+            {
+                functionName: "AppsService.getFullCampaignInfo",
+                additionalData: {
+                    endpoint: "GET /v1/apps/full-campaign-info/:id",
+                },
+            },
+        );
+
+        return getFullCampaignInfoWithErrorHandler(id);
+    }
+
+    async updateCampaign(id: string, body: UpdateCampaignDto) {
+        const updateCampaignWithErrorHandler = wrapWithErrorHandler(
+            this.updateCampaignInternal.bind(this),
+            {
+                functionName: "AppsService.updateCampaign",
+                additionalData: {
+                    endpoint: "PUT /v1/apps/campaign/:id",
+                },
+            },
+        );
+
+        return updateCampaignWithErrorHandler(id, body);
+    }
+
     private async createRentCampaignInternal(body: CreateRentCampaignDto) {
         const { groupId, offerId, name } = body;
         if (!groupId || !offerId || !name) {
@@ -168,6 +199,24 @@ export class AppsService {
 
     private async deleteTrafficSourceInternal(id: string) {
         return await this.keitaroClient.deleteTrafficSource(id);
+    }
+
+    private async getFullCampaignInfoInternal(id: string) {
+        const campaignId = parseInt(id, 10);
+        if (isNaN(campaignId)) {
+            throw new BadRequestException("Invalid campaign ID");
+        }
+
+        return await this.campaignDataService.getFullCampaignInfo(campaignId);
+    }
+
+    private async updateCampaignInternal(id: string, body: UpdateCampaignDto) {
+        const campaignId = parseInt(id, 10);
+        if (isNaN(campaignId)) {
+            throw new BadRequestException("Invalid campaign ID");
+        }
+
+        return await this.keitaroClient.updateCampaign(campaignId, body);
     }
 
     private async getAllCampaignsInternal() {

@@ -12,6 +12,7 @@ import {
 } from "./constants/stream-params";
 import { CreateCampaignInterface } from "./interfaces/create-campaign.interface";
 import { generateUniqueAlias } from "../utils/generateUniqueAlias";
+import { UpdateCampaignDto } from "../apps/dto/update-campaign.dto";
 
 @Injectable()
 export class KeitaroService {
@@ -31,6 +32,80 @@ export class KeitaroService {
             headers: this.generateHeaders(),
         });
         return response.data;
+    }
+
+    async getCampaignById(campaignId: number) {
+        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+        const response = await axios.get(url, {
+            headers: this.generateHeaders(),
+        });
+        return response.data;
+    }
+
+    async getTrafficSourceById(trafficSourceId: number) {
+        const url = this.buildUrl(
+            `admin_api/v1/traffic_sources/${trafficSourceId}`,
+        );
+        const response = await axios.get(url, {
+            headers: this.generateHeaders(),
+        });
+        return response.data;
+    }
+
+    async getGroupById(groupId: number) {
+        const url = this.buildUrl(`admin_api/v1/groups/${groupId}`);
+        const response = await axios.get(url, {
+            headers: this.generateHeaders(),
+        });
+        return response.data;
+    }
+
+    async getCampaignWithRelatedData(campaignId: number) {
+        try {
+            const [campaign, streams] = await Promise.all([
+                this.getCampaignById(campaignId),
+                this.getCampaignStreams(campaignId),
+            ]);
+
+            let trafficSource = null;
+            let group = null;
+
+            if (campaign.traffic_source_id) {
+                try {
+                    trafficSource = await this.getTrafficSourceById(
+                        campaign.traffic_source_id,
+                    );
+                } catch {
+                    Logger.warn(
+                        `Failed to get traffic source ${campaign.traffic_source_id}`,
+                        "KeitaroService",
+                    );
+                }
+            }
+
+            if (campaign.group_id) {
+                try {
+                    group = await this.getGroupById(campaign.group_id);
+                } catch {
+                    Logger.warn(
+                        `Failed to get group ${campaign.group_id}`,
+                        "KeitaroService",
+                    );
+                }
+            }
+
+            return {
+                campaign,
+                streams,
+                trafficSource,
+                group,
+            };
+        } catch (error) {
+            this.logAxiosError("getCampaignWithRelatedData", error, {
+                campaignId,
+            });
+            throw error;
+        }
     }
 
     async getAffiliateNetworks() {
@@ -269,8 +344,79 @@ export class KeitaroService {
         }
     }
 
-    async updateCampaign(campaignId: number, updateData: any) {
-        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+    async updateCampaign(campaignId: number, updateData: UpdateCampaignDto) {
+        try {
+            const updates: any[] = [];
+
+            if (updateData.keitaroCloCampId) {
+                updates.push(
+                    this.createCampaignUpdate(
+                        updateData.keitaroCloCampId,
+                        updateData.keitaroCloToken,
+                        "keitaro_clo_campaign_id",
+                        "keitaro_clo_token",
+                    ),
+                );
+            }
+
+            if (updateData.keitaroOrgCampId) {
+                updates.push(
+                    this.createCampaignUpdate(
+                        updateData.keitaroOrgCampId,
+                        updateData.keitaroOrgToken,
+                        "keitaro_org_campaign_id",
+                        "keitaro_org_token",
+                    ),
+                );
+            }
+
+            if (updateData.keitaroSourceId) {
+                updates.push(
+                    this.createSourceUpdate(
+                        updateData.keitaroSourceId,
+                        "keitaro_source_id",
+                    ),
+                );
+            }
+
+            const results = await Promise.allSettled(
+                updates.map(async (update) => {
+                    if (update.campaignId) {
+                        return this.updateCampaign(
+                            update.campaignId,
+                            update.data,
+                        );
+                    } else if (update.sourceId) {
+                        return this.updateTrafficSource(
+                            update.sourceId,
+                            update.data,
+                        );
+                    }
+                }),
+            );
+
+            return {
+                success: true,
+                updates: results.map((result, index) => ({
+                    id: updates[index].campaignId || updates[index].sourceId,
+                    type: updates[index].campaignId
+                        ? "campaign"
+                        : "traffic_source",
+                    success: result.status === "fulfilled",
+                    data: result.status === "fulfilled" ? result.value : null,
+                    error: result.status === "rejected" ? result.reason : null,
+                })),
+            };
+        } catch (error) {
+            this.logAxiosError("updateCampaign", error, {
+                updateData,
+            });
+            throw error;
+        }
+    }
+
+    async updateTrafficSource(sourceId: number, updateData: any) {
+        const url = this.buildUrl(`admin_api/v1/traffic_sources/${sourceId}`);
 
         try {
             const response = await axios.put(url, updateData, {
@@ -279,8 +425,8 @@ export class KeitaroService {
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("updateCampaign", error, {
-                campaignId,
+            this.logAxiosError("updateTrafficSource", error, {
+                sourceId,
                 updateData,
             });
             throw error;
@@ -453,6 +599,35 @@ export class KeitaroService {
         }
 
         return result;
+    }
+
+    private createCampaignUpdate(
+        campaignId: string,
+        token: string | undefined,
+        campaignIdParam: string,
+        tokenParam: string,
+    ) {
+        return {
+            campaignId: parseInt(campaignId),
+            data: {
+                token: token || undefined,
+                parameters: {
+                    [campaignIdParam]: campaignId,
+                    [tokenParam]: token,
+                },
+            },
+        };
+    }
+
+    private createSourceUpdate(sourceId: string, sourceIdParam: string) {
+        return {
+            sourceId: parseInt(sourceId),
+            data: {
+                parameters: {
+                    [sourceIdParam]: sourceId,
+                },
+            },
+        };
     }
 
     private buildUrl(path: string): string {
