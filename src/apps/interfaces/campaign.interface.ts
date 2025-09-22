@@ -33,3 +33,10 @@ export interface ICampaignCopy {
     sub_id?: string;
     change_parameters?: boolean;
 }
+
+export interface IFullCampaignInfo {
+    campaign: any;
+    streams: any[];
+    trafficSource?: any;
+    group?: any;
+}

@@ -1,4 +1,4 @@
-import { Body, Delete, Get, Param, Post } from "@nestjs/common";
+import { Body, Delete, Get, Param, Post, Put } from "@nestjs/common";
 
 import { AppsService } from "./apps.service";
 import { CreateAppDto } from "../dto/create-app.dto";
@@ -8,6 +8,7 @@ import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
+import { UpdateCampaignDto } from "../dto/update-campaign.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -16,6 +17,19 @@ export class AppsController {
     @Get("all-campaigns")
     async getAllCampaigns() {
         return this.appsService.getAllCampaigns();
+    }
+
+    @Get("full-campaign-info/:id")
+    async getFullCampaignInfo(@Param("id") id: string) {
+        return this.appsService.getFullCampaignInfo(id);
+    }
+
+    @Put("campaign/:id")
+    async updateCampaign(
+        @Param("id") id: string,
+        @Body() body: UpdateCampaignDto,
+    ) {
+        return this.appsService.updateCampaign(id, body);
     }
 
     @Post("create-campaign")
