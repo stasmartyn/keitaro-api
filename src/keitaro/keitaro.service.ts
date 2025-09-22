@@ -60,62 +60,21 @@ export class KeitaroService {
         return response.data;
     }
 
-    async getFullCampaignInfo(campaignId: number) {
+    async getCampaignWithRelatedData(campaignId: number) {
         try {
             const [campaign, streams] = await Promise.all([
                 this.getCampaignById(campaignId),
                 this.getCampaignStreams(campaignId),
             ]);
 
-            const result: any = {
-                source: {
-                    sourceId: campaign.traffic_source_id,
-                    sourceName: null,
-                    postbackUrl: null,
-                },
-                cloCampaign: {
-                    campaignName: campaign.name,
-                    campaignId: campaign.id,
-                    group: null,
-                    settings: {
-                        userBinding:
-                            campaign.parameters?.user_binding ||
-                            campaign.parameters?.flow_rotation ||
-                            null,
-                        userUniqueness:
-                            campaign.parameters?.user_uniqueness ||
-                            campaign.parameters?.uniqueness ||
-                            null,
-                        cookieLifetime:
-                            campaign.parameters?.cookie_lifetime ||
-                            campaign.parameters?.cookie_ttl ||
-                            null,
-                        weightBased: campaign.parameters?.weight_based || null,
-                        bindToFlows: campaign.parameters?.bind_to_flows || null,
-                        bindToLandings:
-                            campaign.parameters?.bind_to_landings || null,
-                        bindToOffers:
-                            campaign.parameters?.bind_to_offers || null,
-                    },
-                },
-                streams: {
-                    trafficSwitch: null,
-                    botFlow: null,
-                    geoBlockFlow: null,
-                    buyerNamingFlows: [],
-                    finalFlow: null,
-                },
-                campaign,
-                allStreams: streams,
-            };
+            let trafficSource = null;
+            let group = null;
 
             if (campaign.traffic_source_id) {
                 try {
-                    const trafficSource = await this.getTrafficSourceById(
+                    trafficSource = await this.getTrafficSourceById(
                         campaign.traffic_source_id,
                     );
-                    result.source.sourceName = trafficSource.name;
-                    result.source.postbackUrl = trafficSource.postback_url;
                 } catch {
                     Logger.warn(
                         `Failed to get traffic source ${campaign.traffic_source_id}`,
@@ -126,9 +85,7 @@ export class KeitaroService {
 
             if (campaign.group_id) {
                 try {
-                    const group = await this.getGroupById(campaign.group_id);
-                    result.group = group;
-                    result.cloCampaign.group = group.name;
+                    group = await this.getGroupById(campaign.group_id);
                 } catch {
                     Logger.warn(
                         `Failed to get group ${campaign.group_id}`,
@@ -137,96 +94,18 @@ export class KeitaroService {
                 }
             }
 
-            this.analyzeStreams(streams, result.streams);
-
-            return result;
+            return {
+                campaign,
+                streams,
+                trafficSource,
+                group,
+            };
         } catch (error) {
-            this.logAxiosError("getFullCampaignInfo", error, { campaignId });
+            this.logAxiosError("getCampaignWithRelatedData", error, {
+                campaignId,
+            });
             throw error;
         }
-    }
-
-    private analyzeStreams(streams: any[], streamInfo: any) {
-        streams.forEach((stream) => {
-            const streamName = stream.name?.toLowerCase() || "";
-            const streamType = stream.type;
-
-            if (
-                streamName.includes("deny all traffic") ||
-                streamName.includes("traffic switch")
-            ) {
-                streamInfo.trafficSwitch = {
-                    id: stream.id,
-                    name: stream.name,
-                    state: stream.state,
-                    type: streamType,
-                    action: stream.action_type,
-                };
-            } else if (
-                streamName.includes("bot") ||
-                streamName.includes("bot flow")
-            ) {
-                streamInfo.botFlow = {
-                    id: stream.id,
-                    name: stream.name,
-                    state: stream.state,
-                    type: streamType,
-                    action: stream.action_type,
-                };
-            } else if (
-                streamName.includes("geo") ||
-                streamName.includes("country") ||
-                streamName.includes("block")
-            ) {
-                streamInfo.geoBlockFlow = {
-                    id: stream.id,
-                    name: stream.name,
-                    state: stream.state,
-                    type: streamType,
-                    action: stream.action_type,
-                    blockedCountries: this.extractBlockedCountries(stream),
-                };
-            } else if (
-                streamName.includes("buyer") ||
-                streamName.includes("naming") ||
-                streamType === "regular"
-            ) {
-                streamInfo.buyerNamingFlows.push({
-                    id: stream.id,
-                    name: stream.name,
-                    state: stream.state,
-                    type: streamType,
-                    action: stream.action_type,
-                    targetCampaign: stream.action_payload,
-                });
-            } else if (
-                streamType === "default" ||
-                streamName.includes("final") ||
-                streamName.includes("finally")
-            ) {
-                streamInfo.finalFlow = {
-                    id: stream.id,
-                    name: stream.name,
-                    state: stream.state,
-                    type: streamType,
-                    action: stream.action_type,
-                    targetCampaign: stream.action_payload,
-                };
-            }
-        });
-    }
-
-    private extractBlockedCountries(stream: any): string[] {
-        if (stream.filters && Array.isArray(stream.filters)) {
-            return stream.filters
-                .filter(
-                    (filter: any) =>
-                        filter.type === "geo" || filter.type === "country",
-                )
-                .map((filter: any) => filter.value)
-                .flat();
-        }
-        return [];
     }
 
     async getAffiliateNetworks() {
@@ -470,45 +349,34 @@ export class KeitaroService {
             const updates: any[] = [];
 
             if (updateData.keitaroCloCampId) {
-                const cloUpdate = {
-                    campaignId: parseInt(updateData.keitaroCloCampId),
-                    data: {
-                        token: updateData.keitaroCloToken || undefined,
-                        parameters: {
-                            keitaro_clo_campaign_id:
-                                updateData.keitaroCloCampId,
-                            keitaro_clo_token: updateData.keitaroCloToken,
-                        },
-                    },
-                };
-                updates.push(cloUpdate);
+                updates.push(
+                    this.createCampaignUpdate(
+                        updateData.keitaroCloCampId,
+                        updateData.keitaroCloToken,
+                        "keitaro_clo_campaign_id",
+                        "keitaro_clo_token",
+                    ),
+                );
             }
 
             if (updateData.keitaroOrgCampId) {
-                const orgUpdate = {
-                    campaignId: parseInt(updateData.keitaroOrgCampId),
-                    data: {
-                        token: updateData.keitaroOrgToken || undefined,
-                        parameters: {
-                            keitaro_org_campaign_id:
-                                updateData.keitaroOrgCampId,
-                            keitaro_org_token: updateData.keitaroOrgToken,
-                        },
-                    },
-                };
-                updates.push(orgUpdate);
+                updates.push(
+                    this.createCampaignUpdate(
+                        updateData.keitaroOrgCampId,
+                        updateData.keitaroOrgToken,
+                        "keitaro_org_campaign_id",
+                        "keitaro_org_token",
+                    ),
+                );
             }
 
             if (updateData.keitaroSourceId) {
-                const sourceUpdate = {
-                    sourceId: parseInt(updateData.keitaroSourceId),
-                    data: {
-                        parameters: {
-                            keitaro_source_id: updateData.keitaroSourceId,
-                        },
-                    },
-                };
-                updates.push(sourceUpdate);
+                updates.push(
+                    this.createSourceUpdate(
+                        updateData.keitaroSourceId,
+                        "keitaro_source_id",
+                    ),
+                );
             }
 
             const results = await Promise.allSettled(
@@ -731,6 +599,35 @@ export class KeitaroService {
         }
 
         return result;
+    }
+
+    private createCampaignUpdate(
+        campaignId: string,
+        token: string | undefined,
+        campaignIdParam: string,
+        tokenParam: string,
+    ) {
+        return {
+            campaignId: parseInt(campaignId),
+            data: {
+                token: token || undefined,
+                parameters: {
+                    [campaignIdParam]: campaignId,
+                    [tokenParam]: token,
+                },
+            },
+        };
+    }
+
+    private createSourceUpdate(sourceId: string, sourceIdParam: string) {
+        return {
+            sourceId: parseInt(sourceId),
+            data: {
+                parameters: {
+                    [sourceIdParam]: sourceId,
+                },
+            },
+        };
     }
 
     private buildUrl(path: string): string {

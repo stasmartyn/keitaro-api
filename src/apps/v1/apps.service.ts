@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { KeitaroService } from "../../keitaro/keitaro.service";
+import { CampaignDataService } from "../campaign-data.service";
 import { wrapWithErrorHandler } from "../../utils/error-wrapper";
 import { Logger } from "../../utils/logger";
 import { CreateAppDto } from "../dto/create-app.dto";
@@ -24,6 +25,7 @@ import { UpdateCampaignDto } from "../dto/update-campaign.dto";
 export class AppsService {
     constructor(
         private readonly keitaroClient: KeitaroService,
+        private readonly campaignDataService: CampaignDataService,
         private readonly configService: ConfigService,
         @Inject(ProvidersDB.CAMPAIGN_USER)
         private readonly campaignUserModel: Model<CampaignUserDocument>,
@@ -205,7 +207,7 @@ export class AppsService {
             throw new BadRequestException("Invalid campaign ID");
         }
 
-        return await this.keitaroClient.getFullCampaignInfo(campaignId);
+        return await this.campaignDataService.getFullCampaignInfo(campaignId);
     }
 
     private async updateCampaignInternal(id: string, body: UpdateCampaignDto) {
