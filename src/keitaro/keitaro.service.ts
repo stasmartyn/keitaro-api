@@ -12,6 +12,7 @@ import {
 } from "./constants/stream-params";
 import { CreateCampaignInterface } from "./interfaces/create-campaign.interface";
 import { generateUniqueAlias } from "../utils/generateUniqueAlias";
+import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.interface";
 
 @Injectable()
 export class KeitaroService {
@@ -427,6 +428,425 @@ export class KeitaroService {
             this.logAxiosError("updateTrafficSource", error, {
                 sourceId,
                 updateData,
+            });
+            throw error;
+        }
+    }
+
+    async syncAppWithKeitaro(appData: any): Promise<SyncAppResultInterface> {
+        try {
+            const updates: any[] = [];
+            const results: SyncAppResultInterface = {
+                success: true,
+                updates: [],
+                errors: [],
+            };
+
+            if (
+                appData.keitaroSourceId &&
+                appData.oldKeitaroSourceId === appData.keitaroSourceId
+            ) {
+                const trafficSourceUpdate: any = {
+                    name: `${appData.name} (${appData.platform})`,
+                };
+
+                // Додаємо postback URL якщо вказана серверна інтеграція
+                if (appData.serverIntegration) {
+                    trafficSourceUpdate.postback_url = this.getPostbackUrl(
+                        appData.serverIntegration,
+                    );
+                }
+
+                updates.push(
+                    this.updateTrafficSource(
+                        parseInt(appData.keitaroSourceId),
+                        trafficSourceUpdate,
+                    )
+                        .then((result) => ({
+                            type: "traffic_source",
+                            id: appData.keitaroSourceId,
+                            success: true,
+                            data: result,
+                        }))
+                        .catch((error) => ({
+                            type: "traffic_source",
+                            id: appData.keitaroSourceId,
+                            success: false,
+                            error: error.message,
+                        })),
+                );
+            }
+
+            if (
+                appData.keitaroSourceId &&
+                appData.oldKeitaroSourceId !== appData.keitaroSourceId &&
+                appData.keitaroCloCampId
+            ) {
+                updates.push(
+                    this.updateCampaign(parseInt(appData.keitaroCloCampId), {
+                        traffic_source_id: parseInt(appData.keitaroSourceId),
+                    })
+                        .then((result) => ({
+                            type: "clo_campaign_source_update",
+                            id: appData.keitaroCloCampId,
+                            success: true,
+                            data: result,
+                        }))
+                        .catch((error) => ({
+                            type: "clo_campaign_source_update",
+                            id: appData.keitaroCloCampId,
+                            success: false,
+                            error: error.message,
+                        })),
+                );
+            }
+
+            if (appData.keitaroCloCampId) {
+                const cloCampaignUpdate: any = {
+                    name: `CLO ${appData.name} (${appData.platform})`,
+                    group_id: this.configService.get("keitaro.cloGroupId"),
+                    parameters: {
+                        app_name: appData.name,
+                        app_bundle: appData.id,
+                        user_binding: "flow_rotation",
+                        user_binding_type: "weight_based",
+                        user_binding_target: "flows_landings_offers",
+                        user_uniqueness: "ip_ua_cookie",
+                        cookie_lifetime: 8760,
+                    },
+                };
+
+                if (appData.keitaroSourceId) {
+                    cloCampaignUpdate.traffic_source_id = parseInt(
+                        appData.keitaroSourceId,
+                    );
+                }
+
+                updates.push(
+                    this.updateCampaign(
+                        parseInt(appData.keitaroCloCampId),
+                        cloCampaignUpdate,
+                    )
+                        .then((result) => ({
+                            type: "clo_campaign",
+                            id: appData.keitaroCloCampId,
+                            success: true,
+                            data: result,
+                        }))
+                        .catch((error) => ({
+                            type: "clo_campaign",
+                            id: appData.keitaroCloCampId,
+                            success: false,
+                            error: error.message,
+                        })),
+                );
+            }
+
+            if (appData.keitaroCloCampId && appData.namingStreams) {
+                const namingStreamUpdates = await this.syncNamingStreams(
+                    parseInt(appData.keitaroCloCampId),
+                    appData.namingStreams,
+                );
+                updates.push(...namingStreamUpdates);
+            }
+
+            const updateResults = await Promise.allSettled(updates);
+
+            updateResults.forEach((result) => {
+                if (result.status === "fulfilled") {
+                    results.updates.push(result.value);
+                    if (!result.value.success) {
+                        results.errors.push(result.value.error);
+                    }
+                } else {
+                    results.errors.push(
+                        result.reason?.message || "Unknown error",
+                    );
+                    results.success = false;
+                }
+            });
+
+            if (results.errors.length > 0) {
+                results.success = false;
+            }
+
+            return results;
+        } catch (error) {
+            this.logAxiosError("syncAppWithKeitaro", error, { appData });
+            throw error;
+        }
+    }
+
+    private async syncNamingStreams(
+        campaignId: number,
+        namingStreams: Array<{ naming: string; targetCampaignId: number }>,
+    ): Promise<any[]> {
+        const updates: any[] = [];
+
+        try {
+            // Отримуємо існуючі потоки кампанії
+            const existingStreams = await this.getCampaignStreams(campaignId);
+
+            // Знаходимо потоки з неймінгами (починаються з "Naming Share:")
+            const existingNamingStreams = existingStreams.filter(
+                (stream: any) => stream.name.startsWith("Naming Share:"),
+            );
+
+            // Створюємо мапу існуючих потоків для швидкого пошуку
+            const existingNamingMap = new Map();
+            existingNamingStreams.forEach((stream: any) => {
+                const naming = stream.name.replace("Naming Share: ", "");
+                existingNamingMap.set(naming, stream);
+            });
+
+            // Оновлюємо або створюємо потоки для кожного неймінгу
+            for (const namingData of namingStreams) {
+                const { naming, targetCampaignId } = namingData;
+
+                if (existingNamingMap.has(naming)) {
+                    // Оновлюємо існуючий потік
+                    const existingStream = existingNamingMap.get(naming);
+                    updates.push(
+                        this.updateStream(existingStream.id, {
+                            action_payload: targetCampaignId.toString(),
+                            state: "active",
+                        })
+                            .then((result) => ({
+                                type: "naming_stream_update",
+                                id: existingStream.id,
+                                naming: naming,
+                                success: true,
+                                data: result,
+                            }))
+                            .catch((error) => ({
+                                type: "naming_stream_update",
+                                id: existingStream.id,
+                                naming: naming,
+                                success: false,
+                                error: error.message,
+                            })),
+                    );
+                } else {
+                    // Створюємо новий потік
+                    updates.push(
+                        this.shareNaming(campaignId, naming, targetCampaignId)
+                            .then((result) => ({
+                                type: "naming_stream_create",
+                                id: result.id,
+                                naming: naming,
+                                success: true,
+                                data: result,
+                            }))
+                            .catch((error) => ({
+                                type: "naming_stream_create",
+                                id: null,
+                                naming: naming,
+                                success: false,
+                                error: error.message,
+                            })),
+                    );
+                }
+            }
+
+            // Видаляємо потоки, які більше не потрібні
+            const currentNamings = new Set(namingStreams.map((n) => n.naming));
+            for (const [naming, stream] of existingNamingMap) {
+                if (!currentNamings.has(naming)) {
+                    updates.push(
+                        this.deleteResource("admin_api/v1/streams", stream.id)
+                            .then((result) => ({
+                                type: "naming_stream_delete",
+                                id: stream.id,
+                                naming: naming,
+                                success: true,
+                                data: result,
+                            }))
+                            .catch((error) => ({
+                                type: "naming_stream_delete",
+                                id: stream.id,
+                                naming: naming,
+                                success: false,
+                                error: error.message,
+                            })),
+                    );
+                }
+            }
+        } catch (error) {
+            this.logAxiosError("syncNamingStreams", error, {
+                campaignId,
+                namingStreams,
+            });
+        }
+
+        return updates;
+    }
+
+    private async updateStream(
+        streamId: number,
+        updateData: any,
+    ): Promise<any> {
+        const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
+        const response = await axios.put(url, updateData, {
+            headers: this.generateHeaders(),
+        });
+        return response.data;
+    }
+
+    private getPostbackUrl(serverIntegration: string): string {
+        switch (serverIntegration) {
+            case "LINK_FACTORY":
+                return "https://postback.linkfactory.site/keitaro-postback?onesignalUserId={appsflyer_device_id}&deviceId={appsflyer_device_id}&advertisingId={advertising_id}&eventName={status}&appBundle={bundle_id}";
+            case "PATRON":
+                return "https://panel.panel-int.xyz/events_sender/?onesignal_id={onesignal_id}&advertising_id={advertising_id}&bundle_id={bundle_id}&status={status}&offer_id={offer_id}";
+            default:
+                throw new Error(
+                    `Unknown server integration: ${serverIntegration}`,
+                );
+        }
+    }
+
+    async closeCloak(campaignId: number): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+
+            const denyAllStream = streams.find((stream: any) =>
+                stream.name.toLowerCase().includes("deny all traffic"),
+            );
+
+            if (!denyAllStream) {
+                throw new Error("Deny all traffic stream not found");
+            }
+
+            const url = this.buildUrl(
+                `admin_api/v1/streams/${denyAllStream.id}`,
+            );
+            const response = await axios.put(
+                url,
+                { state: "active" },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.logAxiosError("closeCloak", error, { campaignId });
+            throw error;
+        }
+    }
+
+    async closeGeo(campaignId: number, geoCode: string): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+
+            const closedGeoStream = streams.find((stream: any) =>
+                stream.name.toLowerCase().includes("closed geo filter"),
+            );
+
+            if (!closedGeoStream) {
+                throw new Error("Closed geo filter stream not found");
+            }
+
+            const existingFilters = [...(closedGeoStream.filters || [])];
+
+            const countryFilter = existingFilters.find(
+                (filter: any) =>
+                    filter.name === "country" && filter.mode === "reject",
+            );
+
+            if (countryFilter) {
+                const currentPayload = countryFilter.payload || [];
+
+                if (currentPayload.includes(geoCode)) {
+                    const url = this.buildUrl(
+                        `admin_api/v1/streams/${closedGeoStream.id}`,
+                    );
+                    const response = await axios.put(
+                        url,
+                        { state: "active" },
+                        {
+                            headers: this.generateHeaders(),
+                        },
+                    );
+                    return response.data;
+                }
+
+                const updatedPayload = [...currentPayload, geoCode];
+
+                const updatedFilters = existingFilters.map((filter: any) => {
+                    if (filter.id === countryFilter.id) {
+                        return {
+                            ...filter,
+                            payload: updatedPayload,
+                        };
+                    }
+                    return filter;
+                });
+
+                const url = this.buildUrl(
+                    `admin_api/v1/streams/${closedGeoStream.id}`,
+                );
+                const response = await axios.put(
+                    url,
+                    {
+                        filters: updatedFilters,
+                        state: "active",
+                    },
+                    {
+                        headers: this.generateHeaders(),
+                    },
+                );
+
+                return response.data;
+            } else {
+                throw new Error(
+                    "Country filter not found in closed geo filter stream",
+                );
+            }
+        } catch (error) {
+            this.logAxiosError("closeGeo", error, { campaignId, geoCode });
+            throw error;
+        }
+    }
+
+    async shareNaming(
+        campaignId: number,
+        naming: string,
+        targetCampaignId: number,
+    ): Promise<any> {
+        try {
+            const streamData = {
+                campaign_id: campaignId,
+                name: `Naming Share: ${naming}`,
+                type: "regular",
+                position: 1,
+                state: "active",
+                weight: 100,
+                action_type: "campaign",
+                action_payload: targetCampaignId.toString(),
+                schema: "landings",
+                filters: [
+                    {
+                        name: "sub_id_17",
+                        mode: "accept",
+                        payload: [naming],
+                    },
+                ],
+                offers: [],
+                landings: [],
+            };
+
+            const url = this.buildUrl("admin_api/v1/streams");
+            const response = await axios.post(url, streamData, {
+                headers: this.generateHeaders(),
+            });
+
+            return response.data;
+        } catch (error) {
+            this.logAxiosError("shareNaming", error, {
+                campaignId,
+                naming,
+                targetCampaignId,
             });
             throw error;
         }

@@ -9,6 +9,10 @@ import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
 import { UpdateCampaignDto } from "../dto/update-campaign.dto";
+import { SyncAppDto } from "../dto/sync-app.dto";
+import { CloseCloakDto } from "../dto/close-cloak.dto";
+import { CloseGeoDto } from "../dto/close-geo.dto";
+import { ShareNamingDto } from "../dto/share-naming.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -75,5 +79,25 @@ export class AppsController {
     @Delete("traffic-source/:id")
     async deleteTrafficSource(@Param("id") id: string) {
         return this.appsService.deleteTrafficSource(id);
+    }
+
+    @Post("sync")
+    async syncApp(@Body() body: SyncAppDto) {
+        return this.appsService.syncApp(body);
+    }
+
+    @Post("close-cloak")
+    async closeCloak(@Body() body: CloseCloakDto) {
+        return this.appsService.closeCloak(body);
+    }
+
+    @Post("close-geo")
+    async closeGeo(@Body() body: CloseGeoDto) {
+        return this.appsService.closeGeo(body);
+    }
+
+    @Post("share-naming")
+    async shareNaming(@Body() body: ShareNamingDto) {
+        return this.appsService.shareNaming(body);
     }
 }

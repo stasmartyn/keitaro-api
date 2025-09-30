@@ -20,6 +20,10 @@ import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
 import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
 import { UpdateCampaignDto } from "../dto/update-campaign.dto";
+import { SyncAppDto } from "../dto/sync-app.dto";
+import { CloseCloakDto } from "../dto/close-cloak.dto";
+import { CloseGeoDto } from "../dto/close-geo.dto";
+import { ShareNamingDto } from "../dto/share-naming.dto";
 
 @Injectable()
 export class AppsService {
@@ -178,6 +182,62 @@ export class AppsService {
         );
 
         return updateCampaignWithErrorHandler(id, body);
+    }
+
+    async syncApp(body: SyncAppDto) {
+        const syncAppWithErrorHandler = wrapWithErrorHandler(
+            this.syncAppInternal.bind(this),
+            {
+                functionName: "AppsService.syncApp",
+                additionalData: {
+                    endpoint: "POST /v1/apps/sync",
+                },
+            },
+        );
+
+        return syncAppWithErrorHandler(body);
+    }
+
+    async closeCloak(body: CloseCloakDto) {
+        const closeCloakWithErrorHandler = wrapWithErrorHandler(
+            this.closeCloakInternal.bind(this),
+            {
+                functionName: "AppsService.closeCloak",
+                additionalData: {
+                    endpoint: "POST /v1/apps/close-cloak",
+                },
+            },
+        );
+
+        return closeCloakWithErrorHandler(body);
+    }
+
+    async closeGeo(body: CloseGeoDto) {
+        const closeGeoWithErrorHandler = wrapWithErrorHandler(
+            this.closeGeoInternal.bind(this),
+            {
+                functionName: "AppsService.closeGeo",
+                additionalData: {
+                    endpoint: "POST /v1/apps/close-geo",
+                },
+            },
+        );
+
+        return closeGeoWithErrorHandler(body);
+    }
+
+    async shareNaming(body: ShareNamingDto) {
+        const shareNamingWithErrorHandler = wrapWithErrorHandler(
+            this.shareNamingInternal.bind(this),
+            {
+                functionName: "AppsService.shareNaming",
+                additionalData: {
+                    endpoint: "POST /v1/apps/share-naming",
+                },
+            },
+        );
+
+        return shareNamingWithErrorHandler(body);
     }
 
     private async createRentCampaignInternal(body: CreateRentCampaignDto) {
@@ -672,6 +732,72 @@ export class AppsService {
 
             throw error;
         }
+    }
+
+    private async syncAppInternal(body: SyncAppDto) {
+        const {
+            id,
+            name,
+            platform,
+            keitaroSourceId,
+            keitaroCloCampId,
+            oldKeitaroSourceId,
+        } = body;
+
+        if (!id || !name || !platform) {
+            throw new BadRequestException(
+                "Missing required fields: id, name, platform",
+            );
+        }
+
+        const appData = {
+            id,
+            name,
+            platform,
+            keitaroSourceId,
+            keitaroCloCampId,
+            oldKeitaroSourceId,
+        };
+
+        return await this.keitaroClient.syncAppWithKeitaro(appData);
+    }
+
+    private async closeCloakInternal(body: CloseCloakDto) {
+        const { campaignId } = body;
+
+        if (!campaignId) {
+            throw new BadRequestException("Missing required field: campaignId");
+        }
+
+        return await this.keitaroClient.closeCloak(campaignId);
+    }
+
+    private async closeGeoInternal(body: CloseGeoDto) {
+        const { campaignId, geoCode } = body;
+
+        if (!campaignId || !geoCode) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, geoCode",
+            );
+        }
+
+        return await this.keitaroClient.closeGeo(campaignId, geoCode);
+    }
+
+    private async shareNamingInternal(body: ShareNamingDto) {
+        const { campaignId, naming, targetCampaignId } = body;
+
+        if (!campaignId || !naming || !targetCampaignId) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, naming, targetCampaignId",
+            );
+        }
+
+        return await this.keitaroClient.shareNaming(
+            campaignId,
+            naming,
+            targetCampaignId,
+        );
     }
 
     private generateUniqueAlias() {
