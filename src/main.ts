@@ -31,7 +31,7 @@ async function bootstrap() {
 
     app.setGlobalPrefix("api");
 
-    await app.listen(5005);
+    await app.listen(5006);
     Logger.info(
         "Application is running",
         { port: 5005, prefix: "api" },
