@@ -220,7 +220,11 @@ export class OffersService {
                     offerData.id,
                     updatedOfferParams,
                 );
-                createdOffers.push(updatedOfferData.name);
+                createdOffers.push({
+                    source,
+                    name: updatedOfferData.name,
+                    lands: `${landKey} | ${updatedUrl}`,
+                });
             }
         }
         return { createdOffers };
