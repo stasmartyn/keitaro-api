@@ -157,6 +157,7 @@ export class OffersService {
             notes,
             lands,
             payout_auto,
+            group,
         } = body;
 
         if (
@@ -166,7 +167,8 @@ export class OffersService {
             !payout_value ||
             !payout_currency ||
             !country ||
-            !lands
+            !lands ||
+            !group
         ) {
             throw new BadRequestException("Missing required fields.");
         }
@@ -207,7 +209,7 @@ export class OffersService {
                     country,
                     notes: notes,
                     payout_auto: payout_auto === "false" ? false : true,
-                    group_id: 20,
+                    group_id: group,
                 });
 
                 const offerData: IOffer =
