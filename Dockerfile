@@ -20,7 +20,7 @@ RUN npx tsc -p tsconfig.json \
 
 ### Stage: runner — minimal production image
 FROM node:20-alpine AS runner
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 WORKDIR /app
 
 # Install only production dependencies; skip scripts to avoid dev hooks (husky)
@@ -30,4 +30,4 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 # Copy compiled app
 COPY --from=build /app/dist ./dist
 COPY tsconfig.json ./
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "start:prod"]
