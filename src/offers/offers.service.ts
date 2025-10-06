@@ -192,7 +192,7 @@ export class OffersService {
 
                 const groups = {
                     282: ["FB"],
-                    281: ["UAC", "UAC"],
+                    281: ["ASO", "UAC"],
                 };
 
                 let updatedUrl = null;
@@ -205,7 +205,6 @@ export class OffersService {
                 }
 
                 let group_id = 20;
-
                 for (const group in groups) {
                     if (groups[group].includes(source)) {
                         group_id = Number(group);
@@ -238,7 +237,7 @@ export class OffersService {
                 createdOffers.push({
                     source,
                     name: updatedOfferData.name,
-                    lands: `${landKey} | ${updatedUrl}`,
+                    lands: `${landKey} | ${updatedUrl ? updatedUrl : lands[landKey]}`,
                 });
             }
         }
