@@ -48,6 +48,9 @@ export class CreateMultipleOffersDto {
     @IsString()
     payout_auto: string | null;
 
+    @IsString()
+    group: string;
+
     @IsNotEmpty()
     lands: Record<string, string>;
 }
