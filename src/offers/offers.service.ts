@@ -157,7 +157,6 @@ export class OffersService {
             notes,
             lands,
             payout_auto,
-            group,
         } = body;
 
         if (
@@ -167,8 +166,7 @@ export class OffersService {
             !payout_value ||
             !payout_currency ||
             !country ||
-            !lands ||
-            !group
+            !lands
         ) {
             throw new BadRequestException("Missing required fields.");
         }
@@ -192,24 +190,39 @@ export class OffersService {
             for (const source of sources) {
                 const afp10Value = this.SOURCE_MAPPING[source];
 
-                const url = new URL(lands[landKey]);
-                const urlParams = new URLSearchParams(url.search);
+                const groups = {
+                    282: ["FB"],
+                    281: ["UAC", "UAC"],
+                };
 
-                urlParams.set("afp10", afp10Value);
+                let updatedUrl = null;
 
-                const updatedUrl = `${url.origin}${url.pathname}?${urlParams.toString()}`;
+                if (sources.length > 1) {
+                    const url = new URL(lands[landKey]);
+                    const urlParams = new URLSearchParams(url.search);
+                    urlParams.set("afp10", afp10Value);
+                    updatedUrl = `${url.origin}${url.pathname}?${urlParams.toString()}`;
+                }
+
+                let group_id = 20;
+
+                for (const group in groups) {
+                    if (groups[group].includes(source)) {
+                        group_id = Number(group);
+                    }
+                }
 
                 const offerName = `${source} | ${name} | ${landKey.split(" | ")[0]}`;
                 const offerParams = this.buildOfferParams({
                     name: `${offerName} | ${affiliateNetwork.name}`,
-                    action_payload: updatedUrl,
+                    action_payload: updatedUrl ? updatedUrl : lands[landKey],
                     affiliate_network_id,
                     payout_value,
                     payout_currency,
                     country,
                     notes: notes,
                     payout_auto: payout_auto === "false" ? false : true,
-                    group_id: group,
+                    group_id,
                 });
 
                 const offerData: IOffer =
