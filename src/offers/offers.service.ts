@@ -211,10 +211,12 @@ export class OffersService {
                     }
                 }
 
+                const action_payload = updatedUrl ? updatedUrl : lands[landKey];
+
                 const offerName = `${source} | ${name} | ${landKey.split(" | ")[0]}`;
                 const offerParams = this.buildOfferParams({
                     name: `${offerName} | ${affiliateNetwork.name}`,
-                    action_payload: updatedUrl ? updatedUrl : lands[landKey],
+                    action_payload,
                     affiliate_network_id,
                     payout_value,
                     payout_currency,
@@ -237,7 +239,7 @@ export class OffersService {
                 createdOffers.push({
                     source,
                     name: updatedOfferData.name,
-                    lands: `${landKey} | ${updatedUrl ? updatedUrl : lands[landKey]}`,
+                    lands: `${landKey} | ${action_payload}`,
                 });
             }
         }
