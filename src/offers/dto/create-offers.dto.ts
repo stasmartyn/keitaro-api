@@ -5,7 +5,7 @@ import {
     IsOptional,
     IsString,
 } from "class-validator";
-import { Type } from "class-transformer";
+// import { Type } from "class-transformer";
 
 export class LandDto {
     @IsString()
@@ -14,6 +14,11 @@ export class LandDto {
 }
 
 export class CreateMultipleOffersDto {
+    @IsArray()
+    @IsString({ each: true })
+    @IsNotEmpty()
+    sources: string[];
+
     @IsString()
     @IsNotEmpty()
     name: string;
@@ -22,9 +27,9 @@ export class CreateMultipleOffersDto {
     @IsNotEmpty()
     affiliate_network_id: number;
 
+    @IsOptional()
     @IsNumber()
-    @IsNotEmpty()
-    payout_value: number;
+    payout_value: number | null;
 
     @IsString()
     @IsNotEmpty()
@@ -43,8 +48,8 @@ export class CreateMultipleOffersDto {
     @IsString()
     payout_auto: string | null;
 
-    @Type(() => LandDto)
-    lands: LandDto;
+    @IsNotEmpty()
+    lands: Record<string, string>;
 }
 
 export class CreateSingleOfferDto {

@@ -1059,8 +1059,12 @@ export class KeitaroService {
     }
 
     private generateHeaders() {
+        const nodeEnv = this.configService.get("NODE_ENV");
+        const keitaroApiKey = this.configService.get("keitaro.apiKey");
+        const keitaroApiKeyDev = this.configService.get("keitaro.apiKeyDev");
         return {
-            "Api-Key": this.configService.get("keitaro.apiKey"),
+            "Api-Key":
+                nodeEnv === "production" ? keitaroApiKey : keitaroApiKeyDev,
             "Content-Type": "application/json",
         };
     }

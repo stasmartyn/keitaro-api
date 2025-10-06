@@ -25,9 +25,9 @@ WORKDIR /app
 
 # Install only production dependencies; skip scripts to avoid dev hooks (husky)
 COPY --from=deps /app/package*.json ./
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 # Copy compiled app
 COPY --from=build /app/dist ./dist
-
-CMD ["node", "dist/main.js"]
+COPY tsconfig.json ./
+CMD ["npm", "run", "start:prod"]

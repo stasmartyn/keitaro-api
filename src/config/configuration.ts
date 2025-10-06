@@ -8,6 +8,7 @@ export default () => ({
         keitaroDomainDev: process.env.KEITARO_DOMAIN_DEV,
         keitaroDomain: process.env.KEITARO_DOMAIN,
         apiKey: process.env.KEITARO_API_KEY,
+        apiKeyDev: process.env.KEITARO_API_KEY_DEV,
         orgGroupId: parseInt(process.env.KEITARO_ORG_GROUP_ID, 10),
         cloGroupId: parseInt(process.env.KEITARO_CLO_GROUP_ID, 10),
         iosCloCampaignTemplateId: parseInt(

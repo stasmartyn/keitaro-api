@@ -15,6 +15,15 @@ import { CreateRentOfferDto } from "./dto/create-rent-offer.dto";
 
 @Injectable()
 export class OffersService {
+    private readonly SOURCE_MAPPING = {
+        FB: "Facebook",
+        UAC: "Google_ads",
+        ASO: "ASO",
+        ACO: "ACO",
+        PWA: "PWA",
+        PPC: "PPC",
+        DG: "DG",
+    };
     constructor(private readonly keitaroService: KeitaroService) {}
 
     async getOffers() {
@@ -139,6 +148,7 @@ export class OffersService {
 
     private async createOfferInternal(body: CreateMultipleOffersDto) {
         const {
+            sources,
             name,
             affiliate_network_id,
             payout_value,
@@ -150,6 +160,7 @@ export class OffersService {
         } = body;
 
         if (
+            !sources ||
             !name ||
             !affiliate_network_id ||
             !payout_value ||
@@ -176,33 +187,45 @@ export class OffersService {
         const createdOffers = [];
 
         for (const landKey in lands) {
-            if (lands[landKey]?.error) {
-                continue;
+            for (const source of sources) {
+                const afp10Value = this.SOURCE_MAPPING[source];
+
+                const url = new URL(lands[landKey]);
+                const urlParams = new URLSearchParams(url.search);
+
+                urlParams.set("afp10", afp10Value);
+
+                const updatedUrl = `${url.origin}${url.pathname}?${urlParams.toString()}`;
+
+                const offerName = `${source} | ${name} | ${landKey.split(" | ")[0]}`;
+                const offerParams = this.buildOfferParams({
+                    name: `${offerName} | ${affiliateNetwork.name}`,
+                    action_payload: updatedUrl,
+                    affiliate_network_id,
+                    payout_value,
+                    payout_currency,
+                    country,
+                    notes: notes,
+                    payout_auto: payout_auto === "false" ? false : true,
+                    group_id: 20,
+                });
+
+                const offerData: IOffer =
+                    await this.keitaroService.createOffer(offerParams);
+
+                const updatedOfferParams = {
+                    name: `${offerData.id} | ${offerName}`,
+                };
+                const updatedOfferData = await this.keitaroService.updateOffer(
+                    offerData.id,
+                    updatedOfferParams,
+                );
+                createdOffers.push({
+                    source,
+                    name: updatedOfferData.name,
+                    lands: `${landKey} | ${updatedUrl}`,
+                });
             }
-            const offerName = `${name} | ${landKey}`;
-            const offerParams = this.buildOfferParams({
-                name: `${offerName} | ${affiliateNetwork.name}`,
-                action_payload: lands[landKey],
-                affiliate_network_id,
-                payout_value,
-                payout_currency,
-                country,
-                notes: notes,
-                payout_auto: payout_auto === "false" ? false : true,
-                group_id: 20,
-            });
-
-            const offerData: IOffer =
-                await this.keitaroService.createOffer(offerParams);
-
-            const updatedOfferParams = {
-                name: `${offerData.id} | ${offerName}`,
-            };
-            const updatedOfferData = await this.keitaroService.updateOffer(
-                offerData.id,
-                updatedOfferParams,
-            );
-            createdOffers.push(updatedOfferData.name);
         }
         return { createdOffers };
     }
@@ -215,7 +238,7 @@ export class OffersService {
         const offerParams = this.buildOfferParams({
             name: offerName,
             action_payload: attribution_link,
-            affiliate_network_id: attribution_type === "affise" ? 444 : 443,
+            affiliate_network_id: attribution_type === "affise" ? 596 : 443,
             group_id: 10,
         });
 

@@ -90,13 +90,16 @@ export class KeitaroProxyService {
 
     private async proxyToKeitaro(req: Request) {
         const path = req.path.substring(1);
+        const nodeEnv = this.configService.get("NODE_ENV");
         const keitaroDomain = this.configService.get("keitaro.keitaroDomain");
         const keitaroApiKey = this.configService.get("keitaro.apiKey");
+        const keitaroApiKeyDev = this.configService.get("keitaro.apiKeyDev");
 
         const keitaroUrl = `${keitaroDomain}/admin_api/v1/${path}`;
 
         const headers = {
-            "Api-Key": keitaroApiKey,
+            "Api-Key":
+                nodeEnv === "production" ? keitaroApiKey : keitaroApiKeyDev,
             "Content-Type": "application/json",
         };
 
