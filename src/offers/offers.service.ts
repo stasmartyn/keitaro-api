@@ -238,7 +238,7 @@ export class OffersService {
                 createdOffers.push({
                     source,
                     name: updatedOfferData.name,
-                    lands: `${landKey} | ${updatedUrl}`,
+                    lands: `${landKey} | ${updatedUrl ? updatedUrl : lands[landKey]}`,
                 });
             }
         }
