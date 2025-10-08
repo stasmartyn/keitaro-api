@@ -142,6 +142,7 @@ describe("AppsController", () => {
             postback_url: "https://test.com/postback",
             isAndroid: true,
             isIos: false,
+            campaign_id: 123,
         };
 
         it("should create app successfully", async () => {

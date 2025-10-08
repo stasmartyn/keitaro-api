@@ -98,6 +98,7 @@ describe("AppsV2Service", () => {
             postback_url: "https://test.com/postback",
             isAndroid: true,
             isIos: false,
+            campaign_id: 123,
         };
 
         beforeEach(() => {
