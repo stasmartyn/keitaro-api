@@ -7,6 +7,9 @@ import { KeitaroService } from "../../keitaro/keitaro.service";
 import { GroupsController } from "../groups.controller";
 import { GroupsService } from "../groups.service";
 import { IGroup } from "../interfaces/group.interface";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("GroupsController", () => {
     let controller: GroupsController;

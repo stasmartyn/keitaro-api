@@ -3,6 +3,9 @@ import { AppsV2Controller } from "../v2/apps.controller";
 import { AppsV2Service } from "../v2/apps.service";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("AppsV2Controller", () => {
     let controller: AppsV2Controller;

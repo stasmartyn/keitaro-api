@@ -8,6 +8,9 @@ import { DomainsController } from "../domains.controller";
 import { DomainsService } from "../domains.service";
 import { CreateDomainDto } from "../dto/create-domain.dto";
 import { IDomain } from "../interfaces/domain.interface";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("DomainsController", () => {
     let controller: DomainsController;

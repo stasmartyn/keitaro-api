@@ -3,6 +3,9 @@ import { UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { TokenGuard } from "../token.guard";
 import { ExecutionContext } from "@nestjs/common";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("TokenGuard", () => {
     let guard: TokenGuard;
