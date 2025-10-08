@@ -5,6 +5,7 @@ import { Model } from "mongoose";
 
 import { AppsService } from "../v1/apps.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
+import { CampaignDataService } from "../campaign-data.service";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
 import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
@@ -146,6 +147,10 @@ describe("AppsService", () => {
             get: jest.fn(),
         };
 
+        const mockCampaignDataService = {
+            getCampaignData: jest.fn(),
+        };
+
         const mockCampaignUserModel = {
             findOne: jest.fn(),
         };
@@ -164,6 +169,10 @@ describe("AppsService", () => {
                 {
                     provide: KeitaroService,
                     useValue: mockKeitaroService,
+                },
+                {
+                    provide: CampaignDataService,
+                    useValue: mockCampaignDataService,
                 },
                 {
                     provide: ConfigService,
@@ -223,6 +232,7 @@ describe("AppsService", () => {
             postback_url: "https://test.com/postback",
             isAndroid: true,
             isIos: false,
+            campaign_id: 123,
         };
 
         beforeEach(() => {

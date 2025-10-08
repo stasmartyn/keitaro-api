@@ -145,6 +145,7 @@ describe("OffersController", () => {
 
     describe("POST /offers/create/multiple", () => {
         const createMultipleOffersDto = {
+            sources: ["source1", "source2"],
             name: "New Test Offer",
             affiliate_network_id: 1,
             payout_value: 20.0,
