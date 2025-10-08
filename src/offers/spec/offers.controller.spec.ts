@@ -1,6 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { OffersController } from "../offers.controller";
 import { OffersService } from "../offers.service";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("OffersController", () => {
     let controller: OffersController;

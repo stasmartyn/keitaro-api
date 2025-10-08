@@ -6,6 +6,9 @@ import { AppsV2Service } from "../v2/apps.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("AppsV2Service", () => {
     let service: AppsV2Service;

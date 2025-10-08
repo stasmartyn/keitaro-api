@@ -6,7 +6,10 @@ import { Model } from "mongoose";
 import { AppsService } from "../v1/apps.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
 import { CampaignDataService } from "../campaign-data.service";
+import { Logger } from "../../utils/logger";
 import { CreateAppDto } from "../dto/create-app.dto";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
 import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";

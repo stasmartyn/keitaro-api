@@ -1,6 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { OffersService } from "../offers.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
+import { Logger } from "../../utils/logger";
+
+jest.spyOn(Logger, "error").mockImplementation(() => {});
 
 describe("OffersService", () => {
     let service: OffersService;
