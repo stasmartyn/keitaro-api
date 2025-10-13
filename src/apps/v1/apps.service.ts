@@ -433,7 +433,7 @@ export class AppsService {
             throw new BadRequestException("Buyer not found.");
         }
 
-        appResult = await this.iosAppModel.findOne({ bundleID: bundle });
+        appResult = await this.iosAppModel.findOne({ appID: bundle });
 
         if (appResult) {
             trafficSourceId = appResult.keitaroID;
