@@ -345,74 +345,79 @@ export class KeitaroService {
     }
 
     async updateCampaign(campaignId: number, updateData: any) {
-        try {
-            const updates: any[] = [];
+        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+        const response = await axios.put(url, updateData, {
+            headers: this.generateHeaders(),
+        });
+        return response.data;
+        // try {
+        //     const updates: any[] = [];
 
-            if (updateData.keitaroCloCampId) {
-                updates.push(
-                    this.createCampaignUpdate(
-                        updateData.keitaroCloCampId,
-                        updateData.keitaroCloToken,
-                        "keitaro_clo_campaign_id",
-                        "keitaro_clo_token",
-                    ),
-                );
-            }
+        //     if (updateData.keitaroCloCampId) {
+        //         updates.push(
+        //             this.createCampaignUpdate(
+        //                 updateData.keitaroCloCampId,
+        //                 updateData.keitaroCloToken,
+        //                 "keitaro_clo_campaign_id",
+        //                 "keitaro_clo_token",
+        //             ),
+        //         );
+        //     }
 
-            if (updateData.keitaroOrgCampId) {
-                updates.push(
-                    this.createCampaignUpdate(
-                        updateData.keitaroOrgCampId,
-                        updateData.keitaroOrgToken,
-                        "keitaro_org_campaign_id",
-                        "keitaro_org_token",
-                    ),
-                );
-            }
+        //     if (updateData.keitaroOrgCampId) {
+        //         updates.push(
+        //             this.createCampaignUpdate(
+        //                 updateData.keitaroOrgCampId,
+        //                 updateData.keitaroOrgToken,
+        //                 "keitaro_org_campaign_id",
+        //                 "keitaro_org_token",
+        //             ),
+        //         );
+        //     }
 
-            if (updateData.keitaroSourceId) {
-                updates.push(
-                    this.createSourceUpdate(
-                        updateData.keitaroSourceId,
-                        "keitaro_source_id",
-                    ),
-                );
-            }
+        //     if (updateData.keitaroSourceId) {
+        //         updates.push(
+        //             this.createSourceUpdate(
+        //                 updateData.keitaroSourceId,
+        //                 "keitaro_source_id",
+        //             ),
+        //         );
+        //     }
 
-            const results = await Promise.allSettled(
-                updates.map(async (update) => {
-                    if (update.campaignId) {
-                        return this.updateCampaign(
-                            update.campaignId,
-                            update.data,
-                        );
-                    } else if (update.sourceId) {
-                        return this.updateTrafficSource(
-                            update.sourceId,
-                            update.data,
-                        );
-                    }
-                }),
-            );
+        //     const results = await Promise.allSettled(
+        //         updates.map(async (update) => {
+        //             if (update.campaignId) {
+        //                 return this.updateCampaign(
+        //                     update.campaignId,
+        //                     update.data,
+        //                 );
+        //             } else if (update.sourceId) {
+        //                 return this.updateTrafficSource(
+        //                     update.sourceId,
+        //                     update.data,
+        //                 );
+        //             }
+        //         }),
+        //     );
 
-            return {
-                success: true,
-                updates: results.map((result, index) => ({
-                    id: updates[index].campaignId || updates[index].sourceId,
-                    type: updates[index].campaignId
-                        ? "campaign"
-                        : "traffic_source",
-                    success: result.status === "fulfilled",
-                    data: result.status === "fulfilled" ? result.value : null,
-                    error: result.status === "rejected" ? result.reason : null,
-                })),
-            };
-        } catch (error) {
-            this.logAxiosError("updateCampaign", error, {
-                updateData,
-            });
-            throw error;
-        }
+        //     return {
+        //         success: true,
+        //         updates: results.map((result, index) => ({
+        //             id: updates[index].campaignId || updates[index].sourceId,
+        //             type: updates[index].campaignId
+        //                 ? "campaign"
+        //                 : "traffic_source",
+        //             success: result.status === "fulfilled",
+        //             data: result.status === "fulfilled" ? result.value : null,
+        //             error: result.status === "rejected" ? result.reason : null,
+        //         })),
+        //     };
+        // } catch (error) {
+        //     this.logAxiosError("updateCampaign", error, {
+        //         updateData,
+        //     });
+        //     throw error;
+        // }
     }
 
     async updateTrafficSource(sourceId: number, updateData: any) {

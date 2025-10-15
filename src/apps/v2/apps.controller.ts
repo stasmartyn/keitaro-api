@@ -11,4 +11,9 @@ export class AppsV2Controller {
     createApp(@Body() body: CreateAppDto) {
         return this.appsService.createApp(body);
     }
+
+    @Post("create-clo-campaign")
+    createCloCampaign(@Body() body: CreateAppDto) {
+        return this.appsService.createCloApp(body);
+    }
 }
