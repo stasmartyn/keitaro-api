@@ -15,6 +15,10 @@ export default () => ({
             process.env.IOS_CLO_CAMPAIGN_TEMPLATE_ID,
             10,
         ),
+        newFlowCloCampaignTemplateId: parseInt(
+            process.env.NEW_FLOW_CLO_CAMPAIGN_TEMPLATE_ID,
+            10,
+        ),
         iosOrgCampaignTemplateId: parseInt(
             process.env.IOS_ORG_CAMPAIGN_TEMPLATE_ID,
             10,

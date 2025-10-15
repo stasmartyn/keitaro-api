@@ -1,6 +1,6 @@
 export interface CreateAppResultInterface {
     trafficSourceId: number;
-    orgCampaign: {
+    orgCampaign?: {
         campaignId: number;
         campaignToken: string;
         campaignAlias: string;

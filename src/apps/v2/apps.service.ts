@@ -29,6 +29,21 @@ export class AppsV2Service {
         return createAppWithErrorHandler(body);
     }
 
+    async createCloApp(body: CreateAppDto) {
+        const createAppWithErrorHandler = wrapWithErrorHandler(
+            this.createCloAppInternal.bind(this),
+            {
+                functionName: "AppsV2Service.createCloApp",
+                additionalData: {
+                    endpoint: "POST /v2/apps/create-clo-campaign",
+                    version: "v2",
+                },
+            },
+        );
+
+        return createAppWithErrorHandler(body);
+    }
+
     private async createAppInternal(body: CreateAppDto) {
         const results: Record<string, { res: any; path: string }> = {};
         try {
@@ -47,7 +62,6 @@ export class AppsV2Service {
                     : this.configService.get(
                           "keitaro.androidCloCampaignTemplateId",
                       );
-
             if (!name || !bundle_id) {
                 throw new BadRequestException("Missing required fields.");
             }
@@ -161,6 +175,7 @@ export class AppsV2Service {
                             campaignAlias: res[0].alias,
                             orgFalseId: null,
                         };
+
                         return res;
                     },
                     path: `admin_api/v1/campaigns/${isIos ? this.configService.get("keitaro.iosOrgCampaignTemplateId") : this.configService.get("keitaro.androidOrgCampaignTemplateId")}/clone`,
@@ -229,6 +244,153 @@ export class AppsV2Service {
                                 statusText: stepError.response?.statusText,
                                 data: stepError.response?.data,
                                 headers: stepError.response?.headers,
+                            },
+                        },
+                        "AppsV2Service",
+                    );
+                    throw stepError;
+                }
+            }
+
+            return result;
+        } catch (error) {
+            Logger.error(
+                "Error creating app resources",
+                {
+                    error: error.message,
+                    bundle_id: body.bundle_id,
+                    name: body.name,
+                    isAndroid: body.isAndroid,
+                    isIos: body.isIos,
+                },
+                "AppsService",
+            );
+
+            for (const step of Object.values(results).reverse()) {
+                if (step.res?.id) {
+                    try {
+                        await this.keitaroClient.deleteResource(
+                            step.path,
+                            step.res.id,
+                        );
+                    } catch (deleteError) {
+                        Logger.error(
+                            `Failed to delete resource`,
+                            {
+                                path: step.path,
+                                id: step.res.id,
+                                error: deleteError.message,
+                            },
+                            "AppsService",
+                        );
+                    }
+                }
+            }
+
+            throw error;
+        }
+    }
+
+    private async createCloAppInternal(body: CreateAppDto) {
+        const results: Record<string, { res: any; path: string }> = {};
+        try {
+            const { name, bundle_id, sub_id, postback_url } = body;
+
+            if (!name || !bundle_id) {
+                throw new BadRequestException("Missing required fields.");
+            }
+
+            const result: CreateAppResultInterface = {
+                trafficSourceId: null,
+                cloCampaign: {
+                    campaignId: null,
+                    campaignToken: null,
+                    campaignAlias: null,
+                    clTrueId: null,
+                    clFalseId: null,
+                },
+            };
+
+            const templateId = this.configService.get(
+                "keitaro.newFlowCloCampaignTemplateId",
+            );
+
+            const steps = [
+                {
+                    key: "trafficSource",
+                    fn: async () => {
+                        const res =
+                            await this.keitaroClient.createTrafficSource(
+                                `${bundle_id} (${name})`,
+                                sub_id,
+                                postback_url,
+                            );
+                        result.trafficSourceId = res.id;
+                        return res;
+                    },
+                    path: "admin_api/v1/traffic_sources",
+                },
+                {
+                    key: "copyCLOCampaign",
+                    fn: async () => {
+                        const res =
+                            await this.keitaroClient.copyCampaign(templateId);
+                        result.cloCampaign = {
+                            campaignId: res[0].id,
+                            campaignToken: `${res[0].token}`,
+                            campaignAlias: `${res[0].alias}`,
+                            clTrueId: null,
+                            clFalseId: null,
+                        };
+                        return res;
+                    },
+                    path: `admin_api/v1/campaigns/${templateId}/clone`,
+                },
+                {
+                    key: "updateCLOCampaign",
+                    fn: async () => {
+                        const alias = this.generateUniqueAlias();
+                        const res = await this.keitaroClient.updateCampaign(
+                            result.cloCampaign.campaignId,
+                            {
+                                name: `CLO ${bundle_id} (${name})`,
+                                alias,
+                                traffic_source_id: result.trafficSourceId,
+                                group_id: 39,
+                            },
+                        );
+                        result.cloCampaign.campaignAlias = alias;
+                        return res;
+                    },
+                    path: `admin_api/v1/campaigns/${result.cloCampaign.campaignId}`,
+                },
+            ];
+
+            for (const step of steps) {
+                try {
+                    results[step.key] = {
+                        res: await step.fn(),
+                        path: step.path,
+                    };
+                } catch (stepError) {
+                    Logger.error(
+                        `Step failed: ${step.key}`,
+                        {
+                            step: step.key,
+                            path: step.path,
+                            error: stepError.message,
+                            // Деталі axios запиту
+                            axiosRequest: {
+                                url: stepError.config?.url,
+                                method: stepError.config?.method?.toUpperCase(),
+                                data: stepError.config?.data,
+                                params: stepError.config?.params,
+                            },
+                            // Деталі відповіді
+                            axiosResponse: {
+                                status: stepError.response?.status,
+                                statusText: stepError.response?.statusText,
+                                data: stepError.response?.data,
                             },
                         },
                         "AppsV2Service",
