@@ -619,7 +619,7 @@ export class AppsService {
                                         traffic_source_id:
                                             result.trafficSourceId,
                                         group_id: cloGroupId,
-                                        sub_id,
+                                        sub_id: isAndroid ? "326" : "321",
                                     });
                                 result.cloCampaign = {
                                     campaignId: res.id,
