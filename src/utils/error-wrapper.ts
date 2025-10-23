@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 
 import { Logger } from "./logger";
+import { AxiosError } from "axios";
 
 interface ErrorContext {
     functionName: string;
@@ -22,6 +23,7 @@ export function wrapWithErrorHandler<T extends any[], R>(
                     message: error.message,
                     stack: error.stack,
                     name: error.name,
+                    data: error.response?.data,
                 },
                 params: context.params || args,
                 additionalData: context.additionalData,
@@ -38,22 +40,20 @@ export function wrapWithErrorHandler<T extends any[], R>(
                 throw error;
             }
 
-            const httpError = new HttpException(
-                {
-                    message: `Error in ${context.functionName}`,
-                    error: error.message,
-                    functionName: context.functionName,
-                    timestamp: errorData.timestamp,
-                    details: {
-                        errorType: error.name,
-                        params: context.params || args,
-                        additionalData: context.additionalData,
+            if (error instanceof AxiosError) {
+                const httpError = new HttpException(
+                    {
+                        message: `Error in ${context.functionName}`,
+                        error: error.response.data,
+                        statusCode: error.response.status,
                     },
-                },
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                );
 
-            throw httpError;
+                throw httpError;
+            }
+
+            throw error;
         }
     };
 }
