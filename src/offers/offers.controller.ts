@@ -16,6 +16,8 @@ import {
     CreateSingleOfferDto,
 } from "./dto/create-offers.dto";
 import { CreateRentOfferDto } from "./dto/create-rent-offer.dto";
+import { EnableCloakDto } from "./dto/enable-cloak.dto";
+import { EnableGraySectionDto } from "./dto/enable-gray-section.dto";
 
 @Controller("offers")
 export class OffersController {
@@ -49,6 +51,16 @@ export class OffersController {
     @Post("create/new-partner")
     async createNewPartner(@Body() body: CreateNewPartnerDto) {
         return this.offersService.createNewPartner(body);
+    }
+
+    @Post("cloak/enable")
+    async enableCloaking(@Body() body: EnableCloakDto) {
+        return this.offersService.enableCloaking(body);
+    }
+
+    @Post("gray-section/enable")
+    async enableGraySection(@Body() body: EnableGraySectionDto) {
+        return this.offersService.enableGraySection(body);
     }
 
     @Patch("update/:id")
