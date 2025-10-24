@@ -31,6 +31,8 @@ export default () => ({
             process.env.ANDROID_ORG_CAMPAIGN_TEMPLATE_ID,
             10,
         ),
+        iosSubId: process.env.IOS_SUB_ID,
+        androidSubId: process.env.ANDROID_SUB_ID,
     },
     database: {
         dev_uri: process.env.MONGO_DATABASE_URI_DEV,
