@@ -19,45 +19,65 @@ export class KeitaroService {
     constructor(private readonly configService: ConfigService) {}
 
     async getOffers() {
-        const url = this.buildUrl("admin_api/v1/offers");
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/offers");
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getOffers.name, error);
+        }
     }
 
     async getAllCampaigns() {
-        const url = this.buildUrl("admin_api/v1/campaigns");
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/campaigns");
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getAllCampaigns.name, error);
+        }
     }
 
     async getCampaignById(campaignId: number) {
-        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getCampaignById.name, error);
+        }
     }
 
     async getTrafficSourceById(trafficSourceId: number) {
-        const url = this.buildUrl(
-            `admin_api/v1/traffic_sources/${trafficSourceId}`,
-        );
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(
+                `admin_api/v1/traffic_sources/${trafficSourceId}`,
+            );
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getTrafficSourceById.name, error);
+        }
     }
 
     async getGroupById(groupId: number) {
-        const url = this.buildUrl(`admin_api/v1/groups/${groupId}`);
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/groups/${groupId}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getGroupById.name, error);
+        }
     }
 
     async getCampaignWithRelatedData(campaignId: number) {
@@ -101,139 +121,180 @@ export class KeitaroService {
                 group,
             };
         } catch (error) {
-            this.logAxiosError("getCampaignWithRelatedData", error, {
-                campaignId,
-            });
-            throw error;
+            this.handleKeitaroError(
+                this.getCampaignWithRelatedData.name,
+                error,
+            );
         }
     }
 
     async getAffiliateNetworks() {
-        const url = this.buildUrl("admin_api/v1/affiliate_networks");
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/affiliate_networks");
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getAffiliateNetworks.name, error);
+        }
     }
 
     async createAffiliateNetwork(affiliateNetworkBody: any) {
-        const url = this.buildUrl("admin_api/v1/affiliate_networks");
-        const response = await axios.post(url, affiliateNetworkBody, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/affiliate_networks");
+            const response = await axios.post(url, affiliateNetworkBody, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createAffiliateNetwork.name, error);
+        }
     }
 
     async createOffer(offerParams: any) {
-        const url = this.buildUrl("admin_api/v1/offers");
-        const response = await axios.post(url, offerParams, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/offers");
+            const response = await axios.post(url, offerParams, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createOffer.name, error);
+        }
     }
 
     async getOfferById(offerId: number) {
-        const url = this.buildUrl(`admin_api/v1/offers/${offerId}`);
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/offers/${offerId}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getOfferById.name, error);
+        }
     }
 
     async updateOffer(offerId: number, offerParams: any) {
-        const url = this.buildUrl(`admin_api/v1/offers/${offerId}`);
-        const response = await axios.put(url, offerParams, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/offers/${offerId}`);
+            const response = await axios.put(url, offerParams, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.updateOffer.name, error);
+        }
     }
 
     async deleteOffer(offerId: number) {
-        const url = this.buildUrl(`admin_api/v1/offers/${offerId}/archive`);
-
         try {
+            const url = this.buildUrl(`admin_api/v1/offers/${offerId}/archive`);
             const response = await axios.delete(url, {
                 headers: this.generateHeaders(),
             });
-
             return response.data;
         } catch (error) {
-            throw error;
+            this.handleKeitaroError(this.deleteOffer.name, error);
         }
     }
 
     async deleteCampaign(campaignId: string) {
-        return this.deleteResource(
-            "admin_api/v1/campaigns",
-            Number(campaignId),
-        );
+        try {
+            return this.deleteResource(
+                "admin_api/v1/campaigns",
+                Number(campaignId),
+            );
+        } catch (error) {
+            this.handleKeitaroError(this.deleteCampaign.name, error);
+        }
     }
 
     async deleteTrafficSource(trafficSourceId: string) {
-        return this.deleteResource(
-            "admin_api/v1/traffic_sources",
-            Number(trafficSourceId),
-        );
+        try {
+            return this.deleteResource(
+                "admin_api/v1/traffic_sources",
+                Number(trafficSourceId),
+            );
+        } catch (error) {
+            this.handleKeitaroError(this.deleteTrafficSource.name, error);
+        }
     }
 
     async deleteAffiliateNetwork(affiliateNetworkId: number) {
-        const url = this.buildUrl(
-            `admin_api/v1/affiliate_networks/${affiliateNetworkId}`,
-        );
-
         try {
+            const url = this.buildUrl(
+                `admin_api/v1/affiliate_networks/${affiliateNetworkId}`,
+            );
             const response = await axios.delete(url, {
                 headers: this.generateHeaders(),
             });
             return response.data;
         } catch (error) {
-            throw error;
+            this.handleKeitaroError(this.deleteAffiliateNetwork.name, error);
         }
     }
 
     async getAffiliateNetworkById(id: number) {
-        const url = this.buildUrl(`admin_api/v1/affiliate_networks/${id}`);
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/affiliate_networks/${id}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getAffiliateNetworkById.name, error);
+        }
     }
 
     async createDomain(domain: string, groupId: number, oneLinkSettings: any) {
-        const url = this.buildUrl("admin_api/v1/domains");
-        const params = {
-            name: domain,
-            group_id: String(groupId),
-            ssl_redirect: true,
-            allow_indexing: false,
-            admin_dashboard: false,
-            catch_not_found: oneLinkSettings?.catch_not_found || false,
-            default_campaign_id: oneLinkSettings?.default_campaign_id || 0,
-        };
+        try {
+            const url = this.buildUrl("admin_api/v1/domains");
+            const params = {
+                name: domain,
+                group_id: String(groupId),
+                ssl_redirect: true,
+                allow_indexing: false,
+                admin_dashboard: false,
+                catch_not_found: oneLinkSettings?.catch_not_found || false,
+                default_campaign_id: oneLinkSettings?.default_campaign_id || 0,
+            };
 
-        const response = await axios.post(url, params, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+            const response = await axios.post(url, params, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createDomain.name, error);
+        }
     }
 
     async getGroups(type: string) {
-        const url = this.buildUrl("admin_api/v1/groups");
-        const response = await axios.get(url, {
-            params: {
-                type,
-            },
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/groups");
+            const response = await axios.get(url, {
+                params: {
+                    type,
+                },
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getGroups.name, error);
+        }
     }
 
     async getDomains() {
-        const url = this.buildUrl("admin_api/v1/domains");
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/domains");
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getDomains.name, error);
+        }
     }
 
     async checkDomainExists(domainName: string): Promise<boolean> {
@@ -241,24 +302,28 @@ export class KeitaroService {
             const domains = await this.getDomains();
             return domains.some((domain: any) => domain.name === domainName);
         } catch (error) {
-            Logger.error(
-                `Failed to check domain existence for ${domainName}:`,
-                error,
-            );
-            return false;
+            this.handleKeitaroError(this.checkDomainExists.name, error);
         }
     }
 
     async getDomainById(domainId: number) {
-        const url = this.buildUrl(`admin_api/v1/domains/${domainId}`);
-        const response = await axios.get(url, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/domains/${domainId}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getDomainById.name, error);
+        }
     }
 
     async deleteDomain(domainId: number) {
-        return this.deleteResource("admin_api/v1/domains", domainId);
+        try {
+            return this.deleteResource("admin_api/v1/domains", domainId);
+        } catch (error) {
+            this.handleKeitaroError(this.deleteDomain.name, error);
+        }
     }
 
     async createTrafficSource(
@@ -266,23 +331,31 @@ export class KeitaroService {
         sub_id: string = null,
         postback_url: string,
     ) {
-        const url = this.buildUrl("admin_api/v1/traffic_sources");
-        const params = trafficSourceParams(name, sub_id, postback_url);
-        const response = await axios.post(url, params, {
-            headers: this.generateHeaders(),
-        });
+        try {
+            const url = this.buildUrl("admin_api/v1/traffic_sources");
+            const params = trafficSourceParams(name, sub_id, postback_url);
+            const response = await axios.post(url, params, {
+                headers: this.generateHeaders(),
+            });
 
-        return response.data;
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createTrafficSource.name, error);
+        }
     }
 
     async createCampaign(data: CreateCampaignInterface) {
-        const url = this.buildUrl("admin_api/v1/campaigns");
-        const campaignPayload = campaignParams(data);
+        try {
+            const url = this.buildUrl("admin_api/v1/campaigns");
+            const campaignPayload = campaignParams(data);
 
-        const response = await axios.post(url, campaignPayload, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+            const response = await axios.post(url, campaignPayload, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createCampaign.name, error);
+        }
     }
 
     async createCLOCampaignStreams(
@@ -290,45 +363,77 @@ export class KeitaroService {
         isAndroid: boolean,
         isIos: boolean,
     ) {
-        const falseFilters = this.buildFalseFilters(isIos);
-        const streamsData = streamParams(isAndroid, falseFilters);
+        try {
+            const falseFilters = this.buildFalseFilters(isIos);
+            const streamsData = streamParams(isAndroid, falseFilters);
 
-        return await this.createStreamsAndExtractIds(campaignId, streamsData, {
-            true: "clTrueId",
-            false: "clFalseId",
-        });
+            return await this.createStreamsAndExtractIds(
+                campaignId,
+                streamsData,
+                {
+                    true: "clTrueId",
+                    false: "clFalseId",
+                },
+            );
+        } catch (error) {
+            this.handleKeitaroError(this.createCLOCampaignStreams.name, error);
+        }
     }
 
     async createORGCampaignStreams(campaignId: number, isIos: boolean) {
-        const falseFilters = this.buildFalseFilters(isIos);
-        const streamsData = orgStreamParams(isIos, falseFilters);
+        try {
+            const falseFilters = this.buildFalseFilters(isIos);
+            const streamsData = orgStreamParams(isIos, falseFilters);
 
-        return await this.createStreamsAndExtractIds(campaignId, streamsData, {
-            false: "orgFalseId",
-        });
+            return await this.createStreamsAndExtractIds(
+                campaignId,
+                streamsData,
+                {
+                    false: "orgFalseId",
+                },
+            );
+        } catch (error) {
+            this.handleKeitaroError(this.createORGCampaignStreams.name, error);
+        }
     }
 
     async createNoORGCampaignStreams(campaignId: number, isIos: boolean) {
-        const streamsData = noOrgStreamParams(isIos);
+        try {
+            const streamsData = noOrgStreamParams(isIos);
 
-        return await this.createStreamsAndExtractIds(campaignId, streamsData, {
-            false: "noOrgFalseId",
-        });
+            return await this.createStreamsAndExtractIds(
+                campaignId,
+                streamsData,
+                {
+                    false: "noOrgFalseId",
+                },
+            );
+        } catch (error) {
+            this.handleKeitaroError(
+                this.createNoORGCampaignStreams.name,
+                error,
+            );
+        }
     }
 
     async deleteResource(path: string, id: number) {
-        const url = this.buildUrl(`${path}/${id}`);
-        const response = await axios.delete(url, {
-            headers: this.generateHeaders(),
-        });
+        try {
+            const url = this.buildUrl(`${path}/${id}`);
+            const response = await axios.delete(url, {
+                headers: this.generateHeaders(),
+            });
 
-        return response.data;
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.deleteResource.name, error);
+        }
     }
 
     async copyCampaign(templateId: number) {
-        const url = this.buildUrl(`admin_api/v1/campaigns/${templateId}/clone`);
-
         try {
+            const url = this.buildUrl(
+                `admin_api/v1/campaigns/${templateId}/clone`,
+            );
             const response = await axios.post(
                 url,
                 {},
@@ -339,17 +444,20 @@ export class KeitaroService {
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("copyCampaign", error, { templateId });
-            throw error;
+            this.handleKeitaroError(this.copyCampaign.name, error);
         }
     }
 
     async updateCampaign(campaignId: number, updateData: any) {
-        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
-        const response = await axios.put(url, updateData, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+            const response = await axios.put(url, updateData, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.updateCampaign.name, error);
+        }
         // try {
         //     const updates: any[] = [];
 
@@ -421,20 +529,17 @@ export class KeitaroService {
     }
 
     async updateTrafficSource(sourceId: number, updateData: any) {
-        const url = this.buildUrl(`admin_api/v1/traffic_sources/${sourceId}`);
-
         try {
+            const url = this.buildUrl(
+                `admin_api/v1/traffic_sources/${sourceId}`,
+            );
             const response = await axios.put(url, updateData, {
                 headers: this.generateHeaders(),
             });
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("updateTrafficSource", error, {
-                sourceId,
-                updateData,
-            });
-            throw error;
+            this.handleKeitaroError(this.updateTrafficSource.name, error);
         }
     }
 
@@ -577,8 +682,7 @@ export class KeitaroService {
 
             return results;
         } catch (error) {
-            this.logAxiosError("syncAppWithKeitaro", error, { appData });
-            throw error;
+            this.handleKeitaroError(this.syncAppWithKeitaro.name, error);
         }
     }
 
@@ -677,10 +781,7 @@ export class KeitaroService {
                 }
             }
         } catch (error) {
-            this.logAxiosError("syncNamingStreams", error, {
-                campaignId,
-                namingStreams,
-            });
+            this.handleKeitaroError(this.syncNamingStreams.name, error);
         }
 
         return updates;
@@ -690,11 +791,15 @@ export class KeitaroService {
         streamId: number,
         updateData: any,
     ): Promise<any> {
-        const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
-        const response = await axios.put(url, updateData, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
+            const response = await axios.put(url, updateData, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.updateStream.name, error);
+        }
     }
 
     private getPostbackUrl(serverIntegration: string): string {
@@ -735,8 +840,7 @@ export class KeitaroService {
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("closeCloak", error, { campaignId });
-            throw error;
+            this.handleKeitaroError(this.closeCloak.name, error);
         }
     }
 
@@ -809,8 +913,7 @@ export class KeitaroService {
                 );
             }
         } catch (error) {
-            this.logAxiosError("closeGeo", error, { campaignId, geoCode });
-            throw error;
+            this.handleKeitaroError(this.closeGeo.name, error);
         }
     }
 
@@ -848,12 +951,7 @@ export class KeitaroService {
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("shareNaming", error, {
-                campaignId,
-                naming,
-                targetCampaignId,
-            });
-            throw error;
+            this.handleKeitaroError(this.shareNaming.name, error);
         }
     }
 
@@ -869,51 +967,69 @@ export class KeitaroService {
 
             return response.data;
         } catch (error) {
-            this.logAxiosError("getCampaignStreams", error, { campaignId });
-            throw error;
+            this.handleKeitaroError(this.getCampaignStreams.name, error);
         }
     }
 
     async updateNoOrgCampaignPostback(updateData: any, campaignId: number) {
-        const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
-        const response = await axios.put(url, updateData, {
-            headers: this.generateHeaders(),
-        });
-        return response.data;
+        try {
+            const url = this.buildUrl(`admin_api/v1/campaigns/${campaignId}`);
+            const response = await axios.put(url, updateData, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(
+                this.updateNoOrgCampaignPostback.name,
+                error,
+            );
+        }
     }
 
     async createStream(campaignId: number, streamData: any) {
-        const url = this.buildUrl("admin_api/v1/streams");
-        const params = {
-            campaign_id: campaignId,
-            ...streamData,
-        };
-        const response = await axios.post(url, params, {
-            headers: this.generateHeaders(),
-        });
+        try {
+            const url = this.buildUrl("admin_api/v1/streams");
+            const params = {
+                campaign_id: campaignId,
+                ...streamData,
+            };
+            const response = await axios.post(url, params, {
+                headers: this.generateHeaders(),
+            });
 
-        return response.data;
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createStream.name, error);
+        }
     }
 
     async createGroup(name: string, type: string) {
-        const url = this.buildUrl("admin_api/v1/groups");
-        const response = await axios.post(
-            url,
-            { name, type },
-            {
-                headers: this.generateHeaders(),
-            },
-        );
-        return response.data;
+        try {
+            const url = this.buildUrl("admin_api/v1/groups");
+            const response = await axios.post(
+                url,
+                { name, type },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createGroup.name, error);
+        }
     }
 
     async createRentOffer(offerParams: Record<string, any>) {
-        const url = this.buildUrl("admin_api/v1/offers");
-        const response = await axios.post(url, offerParams, {
-            headers: this.generateHeaders(),
-        });
+        try {
+            const url = this.buildUrl("admin_api/v1/offers");
+            const response = await axios.post(url, offerParams, {
+                headers: this.generateHeaders(),
+            });
 
-        return response.data;
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createRentOffer.name, error);
+        }
     }
 
     async createRentCampaign(groupId: number, offerId: number, name: string) {
@@ -987,10 +1103,9 @@ export class KeitaroService {
                 clickApiToken: campaign.token,
             };
         } catch (error) {
-            console.error(
-                "Failed to create rent campaign:",
-                error?.response?.data || error,
-            );
+            if (error instanceof axios.AxiosError) {
+                this.handleKeitaroError(this.createRentCampaign.name, error);
+            }
             throw error;
         }
     }
@@ -1074,30 +1189,13 @@ export class KeitaroService {
         };
     }
 
-    private logAxiosError(
-        methodName: string,
-        error: any,
-        additionalData?: any,
-    ) {
-        Logger.error(
-            `${methodName} failed`,
-            {
-                ...additionalData,
-                axiosRequest: {
-                    url: error.config?.url,
-                    method: error.config?.method?.toUpperCase(),
-                    headers: error.config?.headers,
-                    data: error.config?.data,
-                    params: error.config?.params,
-                },
-                axiosResponse: {
-                    status: error.response?.status,
-                    statusText: error.response?.statusText,
-                    data: error.response?.data,
-                    headers: error.response?.headers,
-                },
-            },
-            "KeitaroService",
-        );
+    private handleKeitaroError(methodName: string, error: any): never {
+        // Додаємо назву методу в помилку
+        if (error instanceof axios.AxiosError) {
+            (error as any).isKeitaroError = true;
+            (error as any).keitaroMethod = methodName;
+            throw error;
+        }
+        throw error;
     }
 }
