@@ -615,6 +615,12 @@ export class AppsService {
                         const androidSubId = this.configService.get(
                             "keitaro.androidSubId",
                         );
+
+                        if (!iosSubId || !androidSubId) {
+                            throw new BadRequestException(
+                                "Missing required iosSubId or androidSubId fields in .env file.",
+                            );
+                        }
                         while (true) {
                             try {
                                 const res =
