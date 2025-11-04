@@ -610,6 +610,17 @@ export class AppsService {
                     key: "cloCampaign",
                     fn: async () => {
                         let alias = this.generateUniqueAlias();
+                        const iosSubId =
+                            this.configService.get("keitaro.iosSubId");
+                        const androidSubId = this.configService.get(
+                            "keitaro.androidSubId",
+                        );
+
+                        if (!iosSubId || !androidSubId) {
+                            throw new BadRequestException(
+                                "Missing required iosSubId or androidSubId fields in .env file.",
+                            );
+                        }
                         while (true) {
                             try {
                                 const res =
@@ -619,7 +630,9 @@ export class AppsService {
                                         traffic_source_id:
                                             result.trafficSourceId,
                                         group_id: cloGroupId,
-                                        sub_id,
+                                        sub_id: isAndroid
+                                            ? androidSubId
+                                            : iosSubId,
                                     });
                                 result.cloCampaign = {
                                     campaignId: res.id,

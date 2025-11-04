@@ -12,22 +12,9 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
     const port = configService.get<number>("port");
 
-    app.use((req: Request, res: Response, next: NextFunction) => {
+    app.use((_req: Request, res: Response, next: NextFunction) => {
         const originalSend = res.send;
         res.send = function (data) {
-            if (res.statusCode >= 400) {
-                Logger.error(
-                    `HTTP Error ${res.statusCode}`,
-                    {
-                        method: req.method,
-                        url: req.url,
-                        statusCode: res.statusCode,
-                        body: req.body,
-                        response: data,
-                    },
-                    "HTTP",
-                );
-            }
             return originalSend.call(this, data);
         };
         next();

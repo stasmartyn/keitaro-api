@@ -12,6 +12,8 @@ import { wrapWithErrorHandler } from "../utils/error-wrapper";
 import { IOffer } from "./interfaces/offer.interface";
 import { IAffiliateNetwork } from "./interfaces/affiliate-network.interface";
 import { CreateRentOfferDto } from "./dto/create-rent-offer.dto";
+import { EnableCloakDto } from "./dto/enable-cloak.dto";
+import { EnableGraySectionDto } from "./dto/enable-gray-section.dto";
 
 @Injectable()
 export class OffersService {
@@ -382,6 +384,86 @@ export class OffersService {
 
     private async deleteAffiliateNetworkInternal(id: string) {
         return await this.keitaroService.deleteAffiliateNetwork(Number(id));
+    }
+
+    async enableCloaking(body: EnableCloakDto) {
+        const enableCloakingWithErrorHandler = wrapWithErrorHandler(
+            this.enableCloakingInternal.bind(this),
+            {
+                functionName: "OffersService.enableCloaking",
+                additionalData: {
+                    endpoint: "POST /offers/cloak/enable",
+                    body,
+                },
+            },
+        );
+
+        return enableCloakingWithErrorHandler(body);
+    }
+
+    private async enableCloakingInternal(body: EnableCloakDto) {
+        const { offerId, enableCloaking } = body;
+
+        const offer = await this.keitaroService.getOfferById(offerId);
+
+        if (!offer) {
+            throw new BadRequestException(`Offer with ID ${offerId} not found`);
+        }
+
+        const updateData = {
+            cloaking_enabled: enableCloaking,
+        };
+
+        const result = await this.keitaroService.updateOffer(
+            offerId,
+            updateData,
+        );
+
+        return {
+            success: true,
+            message: `Cloaking ${enableCloaking ? "enabled" : "disabled"} for offer ${offerId}`,
+            data: result,
+        };
+    }
+
+    async enableGraySection(body: EnableGraySectionDto) {
+        const enableGraySectionWithErrorHandler = wrapWithErrorHandler(
+            this.enableGraySectionInternal.bind(this),
+            {
+                functionName: "OffersService.enableGraySection",
+                additionalData: {
+                    endpoint: "POST /offers/gray-section/enable",
+                    body,
+                },
+            },
+        );
+
+        return enableGraySectionWithErrorHandler(body);
+    }
+
+    private async enableGraySectionInternal(body: EnableGraySectionDto) {
+        const { offerId, enableGraySection } = body;
+
+        const offer = await this.keitaroService.getOfferById(offerId);
+
+        if (!offer) {
+            throw new BadRequestException(`Offer with ID ${offerId} not found`);
+        }
+
+        const updateData = {
+            gray_section_enabled: enableGraySection,
+        };
+
+        const result = await this.keitaroService.updateOffer(
+            offerId,
+            updateData,
+        );
+
+        return {
+            success: true,
+            message: `Gray section ${enableGraySection ? "enabled" : "disabled"} for offer ${offerId}`,
+            data: result,
+        };
     }
 
     private buildOfferParams(customParams: any) {
