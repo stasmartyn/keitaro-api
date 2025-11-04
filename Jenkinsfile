@@ -23,6 +23,9 @@ pipeline {
         SERVER_USER = "developer"
         DEPLOY_PATH = "/home/developer/repositories/keitaro_api_ts"
         SSH_KEY_ID = "deploy-ssh-key"
+
+        TELEGRAM_BOT_TOKEN = credentials('TELEGRAM_BOT_TOKEN')
+        TELEGRAM_CHAT_ID   = credentials('TELEGRAM_CHAT_ID')
     }
 
     stages {
@@ -56,18 +59,21 @@ pipeline {
         stage('Run npm tests') {
             steps {
                 dir("${PROJECT_PATH}") {
-                    sh '''
-                        echo "Installing dependencies..."
-                        npm ci
+                    script {
+                        try {
+                            echo "Installing dependencies..."
+                            sh 'npm ci'
 
-                        echo "Running tests..."
-                        npm test && echo "Tests passed successfully!"
+                            echo "Running tests..."
+                            sh 'npm test'
 
-                        echo "Cleaning up node_modules and temporary files to save space..."
-                        rm -rf node_modules .npm dist coverage || true
-
-                        echo "Cleanup complete."
-                    '''
+                            echo "✅ Tests passed successfully!"
+                        } finally {
+                            echo "Cleaning up node_modules and temporary files to save space..."
+                            sh 'rm -rf node_modules .npm dist coverage || true'
+                            echo "Cleanup complete."
+                        }
+                    }
                 }
             }
         }
@@ -122,8 +128,8 @@ pipeline {
                      credentialsId: 'aws-ecr-creds',
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
-                    ]) {
-                    sshagent(credentials: [SSH_KEY_ID]) {                        
+                ]) {
+                    sshagent(credentials: [SSH_KEY_ID]) {
                         sh """
                             echo "Connecting to deployment server via SSH..."
                             ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST '
@@ -167,14 +173,51 @@ pipeline {
 
     post {
         always {
-            echo "Pipeline completed for branch: ${env.BUILD_BRANCH}"
-            // cleanWs(deleteDirs: true, disableDeferredWipeout: true)
+            echo "Pipeline finished"
         }
         success {
-            echo "Pipeline succeeded for ${env.IMAGE_TAG}"
+            script {
+                def branch = env.BUILD_BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                def imageTag = env.IMAGE_TAG ?: 'N/A'
+                def message = """
+✅ *SUCCESS: '${env.JOB_NAME}' completed!*
+━━━━━━━━━━━━━━━━━━━━━━━
+🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
+🌿 *Branch:* ${branch}
+🏷️ *Image tag:* ${imageTag}
+⏱ *Duration:* ${currentBuild.durationString}
+🔗 [View Logs](${env.BUILD_URL}console)
+━━━━━━━━━━━━━━━━━━━━━━━
+""".trim()
+                sh """
+                    curl -s -X POST https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage \
+                    -d chat_id=${env.TELEGRAM_CHAT_ID} \
+                    -d parse_mode=Markdown \
+                    --data-urlencode text="${message}"
+                """
+            }
         }
         failure {
-            echo "Pipeline failed for ${env.IMAGE_TAG}"
+            script {
+                def branch = env.BUILD_BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                def imageTag = env.IMAGE_TAG ?: 'N/A'
+                def message = """
+❌ *FAILURE: '${env.JOB_NAME}' failed!*
+━━━━━━━━━━━━━━━━━━━━━━━
+🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
+🌿 *Branch:* ${branch}
+🏷️ *Image tag:* ${imageTag}
+⏱ *Duration:* ${currentBuild.durationString}
+🔗 [View Logs](${env.BUILD_URL}console)
+━━━━━━━━━━━━━━━━━━━━━━━
+""".trim()
+                sh """
+                    curl -s -X POST https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage \
+                    -d chat_id=${env.TELEGRAM_CHAT_ID} \
+                    -d parse_mode=Markdown \
+                    --data-urlencode text="${message}"
+                """
+            }
         }
     }
 }
