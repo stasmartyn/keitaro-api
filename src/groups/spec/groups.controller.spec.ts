@@ -1,4 +1,3 @@
-import { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { Test, TestingModule } from "@nestjs/testing";
@@ -107,25 +106,25 @@ describe("GroupsController", () => {
             expect(keitaroService.getGroups).toHaveBeenCalledWith(type);
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const type = "android";
             const errorMessage = "Keitaro API error";
             keitaroService.getGroups.mockRejectedValue(new Error(errorMessage));
 
             await expect(controller.getGroups(type)).rejects.toThrow(
-                HttpException,
+                errorMessage,
             );
             expect(keitaroService.getGroups).toHaveBeenCalledWith(type);
         });
 
-        it("should handle network timeout error", async () => {
+        it("should propagate network timeout error", async () => {
             const type = "android";
             const timeoutError = new Error("Request timeout");
             timeoutError.name = "TimeoutError";
             keitaroService.getGroups.mockRejectedValue(timeoutError);
 
             await expect(controller.getGroups(type)).rejects.toThrow(
-                HttpException,
+                "Request timeout",
             );
         });
 

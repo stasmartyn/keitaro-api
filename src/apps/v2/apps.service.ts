@@ -222,33 +222,7 @@ export class AppsV2Service {
                         path: step.path,
                     };
                 } catch (stepError) {
-                    Logger.error(
-                        `Step failed: ${step.key}`,
-                        {
-                            step: step.key,
-                            path: step.path,
-                            error: stepError.message,
-                            statusCode: stepError.response?.status,
-                            responseData: stepError.response?.data,
-                            // Деталі axios запиту
-                            axiosRequest: {
-                                url: stepError.config?.url,
-                                method: stepError.config?.method?.toUpperCase(),
-                                headers: stepError.config?.headers,
-                                data: stepError.config?.data,
-                                params: stepError.config?.params,
-                            },
-                            // Деталі відповіді
-                            axiosResponse: {
-                                status: stepError.response?.status,
-                                statusText: stepError.response?.statusText,
-                                data: stepError.response?.data,
-                                headers: stepError.response?.headers,
-                            },
-                        },
-                        "AppsV2Service",
-                    );
-                    throw stepError;
+                    this.handleStepError(step, stepError);
                 }
             }
 
@@ -373,29 +347,7 @@ export class AppsV2Service {
                         path: step.path,
                     };
                 } catch (stepError) {
-                    Logger.error(
-                        `Step failed: ${step.key}`,
-                        {
-                            step: step.key,
-                            path: step.path,
-                            error: stepError.message,
-                            // Деталі axios запиту
-                            axiosRequest: {
-                                url: stepError.config?.url,
-                                method: stepError.config?.method?.toUpperCase(),
-                                data: stepError.config?.data,
-                                params: stepError.config?.params,
-                            },
-                            // Деталі відповіді
-                            axiosResponse: {
-                                status: stepError.response?.status,
-                                statusText: stepError.response?.statusText,
-                                data: stepError.response?.data,
-                            },
-                        },
-                        "AppsV2Service",
-                    );
-                    throw stepError;
+                    this.handleStepError(step, stepError);
                 }
             }
 
@@ -449,5 +401,61 @@ export class AppsV2Service {
             );
         }
         return result;
+    }
+
+    private handleStepError(
+        step: { key: string; path: string },
+        stepError: any,
+    ): never {
+        const aliasErrorMessage = this.extractAliasErrorMessage(stepError);
+
+        Logger.error(
+            `Step failed: ${step.key}`,
+            {
+                step: step.key,
+                path: step.path,
+                error: aliasErrorMessage ?? stepError.message,
+                statusCode: stepError.response?.status,
+                responseData: stepError.response?.data,
+                axiosRequest: {
+                    url: stepError.config?.url,
+                    method: stepError.config?.method?.toUpperCase(),
+                    headers: stepError.config?.headers,
+                    data: stepError.config?.data,
+                    params: stepError.config?.params,
+                },
+                axiosResponse: {
+                    status: stepError.response?.status,
+                    statusText: stepError.response?.statusText,
+                    data: stepError.response?.data,
+                    headers: stepError.response?.headers,
+                },
+            },
+            "AppsV2Service",
+        );
+
+        if (aliasErrorMessage) {
+            throw new BadRequestException(aliasErrorMessage);
+        }
+
+        throw stepError;
+    }
+
+    private extractAliasErrorMessage(error: any): string | null {
+        const aliasErrors = error?.response?.data?.alias;
+
+        if (!aliasErrors) {
+            return null;
+        }
+
+        if (Array.isArray(aliasErrors)) {
+            return aliasErrors.join(", ");
+        }
+
+        if (typeof aliasErrors === "string") {
+            return aliasErrors;
+        }
+
+        return null;
     }
 }

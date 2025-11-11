@@ -1,4 +1,3 @@
-import { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 
@@ -139,25 +138,23 @@ describe("DomainsController", () => {
             expect(keitaroService.getDomains).toHaveBeenCalledTimes(1);
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const errorMessage = "Keitaro API error";
             keitaroService.getDomains.mockRejectedValue(
                 new Error(errorMessage),
             );
 
-            await expect(controller.getDomains()).rejects.toThrow(
-                HttpException,
-            );
+            await expect(controller.getDomains()).rejects.toThrow(errorMessage);
             expect(keitaroService.getDomains).toHaveBeenCalledTimes(1);
         });
 
-        it("should handle network timeout error", async () => {
+        it("should propagate network timeout error", async () => {
             const timeoutError = new Error("Request timeout");
             timeoutError.name = "TimeoutError";
             keitaroService.getDomains.mockRejectedValue(timeoutError);
 
             await expect(controller.getDomains()).rejects.toThrow(
-                HttpException,
+                "Request timeout",
             );
         });
     });
@@ -181,7 +178,7 @@ describe("DomainsController", () => {
             expect(keitaroService.createDomain).toHaveBeenCalledTimes(1);
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const errorMessage = "Keitaro API error";
             keitaroService.createDomain.mockRejectedValue(
                 new Error(errorMessage),
@@ -189,17 +186,17 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.createDomain(mockCreateDomainDto),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow(errorMessage);
         });
 
-        it("should handle network timeout error", async () => {
+        it("should propagate network timeout error", async () => {
             const timeoutError = new Error("Request timeout");
             timeoutError.name = "TimeoutError";
             keitaroService.createDomain.mockRejectedValue(timeoutError);
 
             await expect(
                 controller.createDomain(mockCreateDomainDto),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow("Request timeout");
         });
 
         it("should throw error when domain already exists", async () => {
@@ -207,7 +204,9 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.createDomain(mockCreateDomainDto),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow(
+                `Domain ${mockCreateDomainDto.domain} already exists`,
+            );
             expect(keitaroService.checkDomainExists).toHaveBeenCalledWith(
                 mockCreateDomainDto.domain,
             );
@@ -244,7 +243,7 @@ describe("DomainsController", () => {
             );
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const domainName = "test-domain.com";
             const errorMessage = "Keitaro API error";
             keitaroService.checkDomainExists.mockRejectedValue(
@@ -253,7 +252,7 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.checkDomainExists(domainName),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow(errorMessage);
             expect(keitaroService.checkDomainExists).toHaveBeenCalledWith(
                 domainName,
             );
@@ -277,7 +276,7 @@ describe("DomainsController", () => {
             expect(keitaroService.getDomainById).toHaveBeenCalledTimes(1);
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const domainId = 123;
             const errorMessage = "Keitaro API error";
             keitaroService.getDomainById.mockRejectedValue(
@@ -286,11 +285,11 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.getDomainById(domainId.toString()),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow(errorMessage);
             expect(keitaroService.getDomainById).toHaveBeenCalledWith(domainId);
         });
 
-        it("should handle network timeout error", async () => {
+        it("should propagate network timeout error", async () => {
             const domainId = 123;
             const timeoutError = new Error("Request timeout");
             timeoutError.name = "TimeoutError";
@@ -298,7 +297,7 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.getDomainById(domainId.toString()),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow("Request timeout");
         });
 
         it("should handle invalid domain ID", async () => {
@@ -329,7 +328,7 @@ describe("DomainsController", () => {
             expect(keitaroService.deleteDomain).toHaveBeenCalledTimes(1);
         });
 
-        it("should handle keitaro service error and throw HttpException", async () => {
+        it("should propagate keitaro service error", async () => {
             const domainId = 123;
             const errorMessage = "Keitaro API error";
             keitaroService.deleteDomain.mockRejectedValue(
@@ -338,11 +337,11 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.deleteDomain(domainId.toString()),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow(errorMessage);
             expect(keitaroService.deleteDomain).toHaveBeenCalledWith(domainId);
         });
 
-        it("should handle network timeout error", async () => {
+        it("should propagate network timeout error", async () => {
             const domainId = 123;
             const timeoutError = new Error("Request timeout");
             timeoutError.name = "TimeoutError";
@@ -350,7 +349,7 @@ describe("DomainsController", () => {
 
             await expect(
                 controller.deleteDomain(domainId.toString()),
-            ).rejects.toThrow(HttpException);
+            ).rejects.toThrow("Request timeout");
         });
 
         it("should handle invalid domain ID", async () => {
