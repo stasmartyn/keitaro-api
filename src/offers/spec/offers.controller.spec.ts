@@ -93,6 +93,8 @@ describe("OffersController", () => {
                         createSingleOfferAppLink: jest.fn(),
                         createNewPartner: jest.fn(),
                         updateOffer: jest.fn(),
+                        enableCloaking: jest.fn(),
+                        enableGraySection: jest.fn(),
                     },
                 },
             ],

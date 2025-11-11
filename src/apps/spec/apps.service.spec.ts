@@ -242,6 +242,8 @@ describe("AppsService", () => {
             configService.get.mockImplementation((key: string) => {
                 if (key === "keitaro.orgGroupId") return 8;
                 if (key === "keitaro.cloGroupId") return 39;
+                if (key === "keitaro.iosSubId") return "ios-sub";
+                if (key === "keitaro.androidSubId") return "android-sub";
                 return null;
             });
         });
@@ -319,9 +321,23 @@ describe("AppsService", () => {
                     ...mockCampaign,
                     clTrueId: 202,
                     clFalseId: 303,
+                })
+                .mockResolvedValueOnce({
+                    ...mockCampaign,
+                    orgFalseId: 789,
                 });
+            keitaroService.createCLOCampaignStreams.mockResolvedValue({
+                clTrueId: 202,
+                clFalseId: 303,
+            });
+            keitaroService.createORGCampaignStreams.mockResolvedValue({
+                orgFalseId: 789,
+            });
 
-            await expect(service.createApp(createAppDto)).rejects.toThrow();
+            const result = await service.createApp(createAppDto);
+
+            expect(result).toBeDefined();
+            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(3);
         });
     });
 
@@ -526,7 +542,8 @@ describe("AppsService", () => {
 
             await expect(
                 service.createOnelinkCampaign(createOnelinkCampaignDto),
-            ).rejects.toThrow();
+            ).rejects.toEqual(aliasConflictError);
+            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(1);
         });
 
         it("should handle duplicate alias error", async () => {
@@ -545,7 +562,8 @@ describe("AppsService", () => {
 
             await expect(
                 service.createOnelinkCampaign(createOnelinkCampaignDto),
-            ).rejects.toThrow();
+            ).rejects.toEqual(duplicateAliasError);
+            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(1);
         });
     });
 });
