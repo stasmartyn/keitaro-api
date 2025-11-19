@@ -1152,6 +1152,18 @@ export class KeitaroService {
         }
     }
 
+    async conversionLog(body: Record<string, any>) {
+        try {
+            const url = this.buildUrl("admin_api/v1/conversions/log");
+            const response = await axios.post(url, body, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.conversionLog.name, error);
+        }
+    }
+
     private createCampaignUpdate(
         campaignId: string,
         token: string | undefined,

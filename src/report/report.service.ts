@@ -8,4 +8,8 @@ export class ReportService {
     async buildReport(body: Record<string, any>) {
         return this.keitaroService.buildReport(body);
     }
+
+    async conversionLog(body: Record<string, any>) {
+        return this.keitaroService.conversionLog(body);
+    }
 }

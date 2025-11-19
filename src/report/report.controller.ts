@@ -11,4 +11,9 @@ export class ReportController {
     async buildReport(@Body() body: Record<string, any>) {
         return this.reportService.buildReport(body);
     }
+
+    @Post("conversion/log")
+    async conversionLog(@Body() body: Record<string, any>) {
+        return this.reportService.conversionLog(body);
+    }
 }
