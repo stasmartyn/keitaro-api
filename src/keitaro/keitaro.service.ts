@@ -1140,6 +1140,18 @@ export class KeitaroService {
         return result;
     }
 
+    async buildReport(body: Record<string, any>) {
+        try {
+            const url = this.buildUrl("admin_api/v1/report/build");
+            const response = await axios.post(url, body, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.buildReport.name, error);
+        }
+    }
+
     private createCampaignUpdate(
         campaignId: string,
         token: string | undefined,
