@@ -844,6 +844,38 @@ export class KeitaroService {
         }
     }
 
+    async allowAllTraffic(
+        campaignId: number,
+        shouldAllow: boolean,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+
+            const denyAllStream = streams.find((stream: any) =>
+                stream.name.toLowerCase().includes("deny all traffic"),
+            );
+
+            if (!denyAllStream) {
+                throw new Error("Deny all traffic stream not found");
+            }
+
+            const url = this.buildUrl(
+                `admin_api/v1/streams/${denyAllStream.id}`,
+            );
+            const response = await axios.put(
+                url,
+                { state: shouldAllow ? "disabled" : "active" },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.allowAllTraffic.name, error);
+        }
+    }
+
     async closeGeo(campaignId: number, geoCode: string): Promise<any> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
@@ -952,6 +984,42 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.shareNaming.name, error);
+        }
+    }
+
+    async toggleTestFlow(campaignId: number, enable: boolean): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const testFlow = streams.find((stream: any) =>
+                stream.name?.toLowerCase().includes("test flow"),
+            );
+
+            const isConfiguredCorrectly =
+                testFlow &&
+                testFlow.type === "forced" &&
+                Array.isArray(testFlow.offers) &&
+                testFlow.offers.length > 0;
+
+            if (!isConfiguredCorrectly) {
+                throw new Error(
+                    "Test flow stream does not exist or is incorrectly configured",
+                );
+            }
+
+            const url = this.buildUrl(`admin_api/v1/streams/${testFlow.id}`);
+            const response = await axios.put(
+                url,
+                {
+                    state: enable ? "active" : "disabled",
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.toggleTestFlow.name, error);
         }
     }
 

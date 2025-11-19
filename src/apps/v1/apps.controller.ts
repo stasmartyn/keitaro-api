@@ -13,6 +13,8 @@ import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
+import { AllowTrafficDto } from "../dto/allow-traffic.dto";
+import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -91,6 +93,11 @@ export class AppsController {
         return this.appsService.closeCloak(body);
     }
 
+    @Post("allow-all-traffic")
+    async allowAllTraffic(@Body() body: AllowTrafficDto) {
+        return this.appsService.allowAllTraffic(body);
+    }
+
     @Post("close-geo")
     async closeGeo(@Body() body: CloseGeoDto) {
         return this.appsService.closeGeo(body);
@@ -99,5 +106,10 @@ export class AppsController {
     @Post("share-naming")
     async shareNaming(@Body() body: ShareNamingDto) {
         return this.appsService.shareNaming(body);
+    }
+
+    @Post("toggle-test-flow")
+    async toggleTestFlow(@Body() body: ToggleTestFlowDto) {
+        return this.appsService.toggleTestFlow(body);
     }
 }

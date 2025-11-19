@@ -24,6 +24,8 @@ import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
+import { AllowTrafficDto } from "../dto/allow-traffic.dto";
+import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 
 @Injectable()
 export class AppsService {
@@ -212,6 +214,20 @@ export class AppsService {
         return closeCloakWithErrorHandler(body);
     }
 
+    async allowAllTraffic(body: AllowTrafficDto) {
+        const allowAllTrafficWithErrorHandler = wrapWithErrorHandler(
+            this.allowAllTrafficInternal.bind(this),
+            {
+                functionName: "AppsService.allowAllTraffic",
+                additionalData: {
+                    endpoint: "POST /v1/apps/allow-all-traffic",
+                },
+            },
+        );
+
+        return allowAllTrafficWithErrorHandler(body);
+    }
+
     async closeGeo(body: CloseGeoDto) {
         const closeGeoWithErrorHandler = wrapWithErrorHandler(
             this.closeGeoInternal.bind(this),
@@ -238,6 +254,20 @@ export class AppsService {
         );
 
         return shareNamingWithErrorHandler(body);
+    }
+
+    async toggleTestFlow(body: ToggleTestFlowDto) {
+        const toggleTestFlowWithErrorHandler = wrapWithErrorHandler(
+            this.toggleTestFlowInternal.bind(this),
+            {
+                functionName: "AppsService.toggleTestFlow",
+                additionalData: {
+                    endpoint: "POST /v1/apps/toggle-test-flow",
+                },
+            },
+        );
+
+        return toggleTestFlowWithErrorHandler(body);
     }
 
     private async createRentCampaignInternal(body: CreateRentCampaignDto) {
@@ -785,6 +815,19 @@ export class AppsService {
         return await this.keitaroClient.closeCloak(campaignId);
     }
 
+    private async allowAllTrafficInternal(body: AllowTrafficDto) {
+        const { campaignId, allow } = body;
+
+        if (!campaignId) {
+            throw new BadRequestException("Missing required field: campaignId");
+        }
+
+        return await this.keitaroClient.allowAllTraffic(
+            campaignId,
+            allow ?? true,
+        );
+    }
+
     private async closeGeoInternal(body: CloseGeoDto) {
         const { campaignId, geoCode } = body;
 
@@ -811,6 +854,18 @@ export class AppsService {
             naming,
             targetCampaignId,
         );
+    }
+
+    private async toggleTestFlowInternal(body: ToggleTestFlowDto) {
+        const { campaignId, enable } = body;
+
+        if (campaignId === undefined || enable === undefined) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, enable",
+            );
+        }
+
+        return await this.keitaroClient.toggleTestFlow(campaignId, enable);
     }
 
     private generateUniqueAlias() {
