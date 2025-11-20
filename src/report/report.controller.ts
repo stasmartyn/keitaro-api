@@ -21,4 +21,9 @@ export class ReportController {
     async stats(@Body() body: Record<string, any>) {
         return this.reportService.stats(body);
     }
+
+    @Post("clicks/log")
+    async clicksLog(@Body() body: Record<string, any>) {
+        return this.reportService.clicksLog(body);
+    }
 }

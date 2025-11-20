@@ -13,6 +13,10 @@ export class ReportService {
         return this.keitaroService.conversionLog(body);
     }
 
+    async clicksLog(body: Record<string, any>) {
+        return this.keitaroService.clicksLog(body);
+    }
+
     async stats(body: Record<string, any>) {
         const { startDate, endDate, campaignGroupId } = body;
         if (!startDate || !endDate || !campaignGroupId) {
