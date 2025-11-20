@@ -30,6 +30,18 @@ export class KeitaroService {
         }
     }
 
+    async getOffer(id: string) {
+        try {
+            const url = this.buildUrl(`admin_api/v1/offers/${id}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getOffers.name, error);
+        }
+    }
+
     async getAllCampaigns() {
         try {
             const url = this.buildUrl("admin_api/v1/campaigns");
