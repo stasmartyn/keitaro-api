@@ -11,6 +11,7 @@ import { GroupsModule } from "../groups/groups.module";
 import { DomainsModule } from "../domains/domains.module";
 import { KeitaroModule } from "../keitaro/keitaro.module";
 import { OffersModule } from "../offers/offers.module";
+import { ReportModule } from "../report/report.module";
 
 @Module({
     imports: [
@@ -23,6 +24,7 @@ import { OffersModule } from "../offers/offers.module";
         DomainsModule,
         OffersModule,
         KeitaroModule,
+        ReportModule,
     ],
     controllers: [AppController],
     providers: [

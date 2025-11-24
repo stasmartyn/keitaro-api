@@ -40,6 +40,18 @@ export class OffersService {
         return getOffersWithErrorHandler();
     }
 
+    async getOffer(id: string) {
+        const getOffersWithErrorHandler = wrapWithErrorHandler(
+            this.getOfferInternal.bind(this),
+            {
+                functionName: "OffersService.getOffer",
+                additionalData: { endpoint: "GET /offers/:id" },
+            },
+        );
+
+        return getOffersWithErrorHandler(id);
+    }
+
     async createOffer(body: CreateMultipleOffersDto) {
         const createOfferWithErrorHandler = wrapWithErrorHandler(
             this.createOfferInternal.bind(this),
@@ -146,6 +158,10 @@ export class OffersService {
 
     private async getOffersInternal() {
         return await this.keitaroService.getOffers();
+    }
+
+    private async getOfferInternal(id: string) {
+        return await this.keitaroService.getOffer(id);
     }
 
     private async createOfferInternal(body: CreateMultipleOffersDto) {
