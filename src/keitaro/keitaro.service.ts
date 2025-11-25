@@ -38,7 +38,7 @@ export class KeitaroService {
             });
             return response.data;
         } catch (error) {
-            this.handleKeitaroError(this.getOffers.name, error);
+            this.handleKeitaroError(this.getOffer.name, error);
         }
     }
 
@@ -1184,7 +1184,7 @@ export class KeitaroService {
             });
             return response.data;
         } catch (error) {
-            this.handleKeitaroError(this.conversionLog.name, error);
+            this.handleKeitaroError(this.clicksLog.name, error);
         }
     }
 
