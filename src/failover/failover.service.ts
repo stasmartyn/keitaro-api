@@ -4,12 +4,51 @@ import { KeitaroService } from "../keitaro/keitaro.service";
 import { Logger } from "../utils/logger";
 import { ReportPayload } from "../keitaro/interfaces/failover.interface";
 import { PreviewResponseDto } from "./dto/app-banned.dto";
+import { TelegramService } from "../notifications/telegram.service";
+
+interface FailoverConfig {
+    campaignGroupId: number;
+    bannedCampaignGroupId: number;
+    minCampaignId: number;
+    pageSize: number;
+    defaultCampaignId: number;
+    bannedDomainGroupId: number;
+    privateOfferGroupId: number;
+    publicOfferGroupId: number;
+    bannedOfferGroupId: number;
+    defaultStreamId: number;
+    expectedLandingId: number;
+}
+
+interface CampaignResult {
+    campaigns: any[];
+    campaignsPreview: any[];
+}
+
+interface DomainResult {
+    domainsToUpdate: any[];
+    domainsPreview: any[];
+}
+
+interface OfferResult {
+    offersToUpdate: any[];
+    offersPreview: any[];
+    bannedOfferIds: number[];
+}
+
+interface StreamResult {
+    configIssues: string[];
+    currentOfferDetails: any;
+    willReplaceOffer: boolean;
+    replacementOffer: any;
+}
 
 @Injectable()
 export class FailoverService {
     constructor(
         private readonly keitaroService: KeitaroService,
         private readonly configService: ConfigService,
+        private readonly telegramService: TelegramService,
     ) {}
 
     async handleAppBan(
@@ -42,66 +81,158 @@ export class FailoverService {
         return match ? match[0] : "unknown";
     }
 
+    private getFailoverConfig(): FailoverConfig {
+        return {
+            campaignGroupId: this.configService.get<number>(
+                "failover.campaignGroupId",
+            ),
+            bannedCampaignGroupId: this.configService.get<number>(
+                "failover.bannedCampaignGroupId",
+            ),
+            minCampaignId: this.configService.get<number>(
+                "failover.minCampaignId",
+            ),
+            pageSize: this.configService.get<number>(
+                "failover.campaignsPageSize",
+            ),
+            defaultCampaignId: this.configService.get<number>(
+                "failover.defaultCampaignId",
+            ),
+            bannedDomainGroupId: this.configService.get<number>(
+                "failover.bannedDomainGroupId",
+            ),
+            privateOfferGroupId: this.configService.get<number>(
+                "failover.privateOfferGroupId",
+            ),
+            publicOfferGroupId: this.configService.get<number>(
+                "failover.publicOfferGroupId",
+            ),
+            bannedOfferGroupId: this.configService.get<number>(
+                "failover.bannedOfferGroupId",
+            ),
+            defaultStreamId: this.configService.get<number>(
+                "failover.defaultStreamId",
+            ),
+            expectedLandingId: this.configService.get<number>(
+                "failover.streamLandingId",
+            ),
+        };
+    }
+
     private async executeFailover(
         platform: string,
         appId: string,
         execute: boolean,
     ): Promise<PreviewResponseDto> {
-        const campaignGroupId = this.configService.get<number>(
-            "failover.campaignGroupId",
-        );
-        const bannedCampaignGroupId = this.configService.get<number>(
-            "failover.bannedCampaignGroupId",
-        );
-        const minCampaignId = this.configService.get<number>(
-            "failover.minCampaignId",
-        );
-        const pageSize = this.configService.get<number>(
-            "failover.campaignsPageSize",
-        );
-        const defaultCampaignId = this.configService.get<number>(
-            "failover.defaultCampaignId",
-        );
-        const bannedDomainGroupId = this.configService.get<number>(
-            "failover.bannedDomainGroupId",
-        );
-        const privateOfferGroupId = this.configService.get<number>(
-            "failover.privateOfferGroupId",
-        );
-        const publicOfferGroupId = this.configService.get<number>(
-            "failover.publicOfferGroupId",
-        );
-        const bannedOfferGroupId = this.configService.get<number>(
-            "failover.bannedOfferGroupId",
-        );
-        const defaultStreamId = this.configService.get<number>(
-            "failover.defaultStreamId",
-        );
-        const expectedLandingId = this.configService.get<number>(
-            "failover.streamLandingId",
+        const config = this.getFailoverConfig();
+
+        // Execute all steps
+        const campaignResult = await this.executeStep1Campaigns(
+            appId,
+            config,
+            execute,
         );
 
-        // Step 1: Preview campaigns
+        const domainResult = await this.executeStep2Domains(
+            campaignResult.campaigns,
+            config,
+            execute,
+        );
+
+        const offerResult = await this.executeStep3Offers(
+            appId,
+            config,
+            execute,
+        );
+
+        const streamResult = await this.executeStep4Stream(
+            platform,
+            appId,
+            config,
+            offerResult.bannedOfferIds,
+            execute,
+        );
+
+        // Calculate total operations
+        const totalOperations =
+            campaignResult.campaigns.length +
+            domainResult.domainsToUpdate.length +
+            offerResult.offersToUpdate.length +
+            (streamResult.willReplaceOffer ? 1 : 0);
+
+        return {
+            summary: {
+                appId,
+                platform,
+                totalOperations,
+            },
+            step1_campaigns: {
+                found: campaignResult.campaigns.length,
+                campaigns: campaignResult.campaignsPreview,
+            },
+            step2_domains: {
+                found: domainResult.domainsToUpdate.length,
+                domains: domainResult.domainsPreview,
+            },
+            step3_offers: {
+                found: offerResult.offersToUpdate.length,
+                offers: offerResult.offersPreview,
+            },
+            step4_stream: {
+                streamId: config.defaultStreamId,
+                campaignId: config.defaultCampaignId,
+                configValid: streamResult.configIssues.length === 0,
+                ...(streamResult.configIssues.length > 0 && {
+                    configIssues: streamResult.configIssues,
+                }),
+                currentOffer: streamResult.currentOfferDetails
+                    ? {
+                          id: streamResult.currentOfferDetails.id,
+                          name: streamResult.currentOfferDetails.name,
+                          groupId: streamResult.currentOfferDetails.group_id,
+                          isBanned:
+                              streamResult.currentOfferDetails.group_id ===
+                                  config.bannedOfferGroupId ||
+                              offerResult.bannedOfferIds.includes(
+                                  streamResult.currentOfferDetails.id,
+                              ),
+                      }
+                    : null,
+                willReplaceOffer: streamResult.willReplaceOffer,
+                ...(streamResult.replacementOffer && {
+                    replacementOffer: streamResult.replacementOffer,
+                }),
+            },
+        };
+    }
+
+    /**
+     * Step 1: Handle campaigns - find and move banned app campaigns
+     */
+    private async executeStep1Campaigns(
+        appId: string,
+        config: FailoverConfig,
+        execute: boolean,
+    ): Promise<CampaignResult> {
         const campaigns = await this.keitaroService.getAllCampaignsFromMinId(
             appId,
-            campaignGroupId,
-            minCampaignId,
-            pageSize,
+            config.campaignGroupId,
+            config.minCampaignId,
+            config.pageSize,
         );
 
         const campaignsPreview = campaigns.map((c) => ({
             id: c.id,
             name: c.name,
             currentGroupId: c.group_id,
-            willMoveToGroupId: bannedCampaignGroupId,
+            willMoveToGroupId: config.bannedCampaignGroupId,
         }));
 
-        // Execute Step 1: Move campaigns if execute mode
         if (execute) {
             for (const campaign of campaigns) {
                 try {
                     await this.keitaroService.updateCampaign(campaign.id, {
-                        group_id: bannedCampaignGroupId,
+                        group_id: config.bannedCampaignGroupId,
                     });
                     Logger.debug(
                         `Moved campaign ${campaign.id} to banned group`,
@@ -116,7 +247,17 @@ export class FailoverService {
             }
         }
 
-        // Step 2: Preview domains
+        return { campaigns, campaignsPreview };
+    }
+
+    /**
+     * Step 2: Handle domains - update domains linked to banned campaigns
+     */
+    private async executeStep2Domains(
+        campaigns: any[],
+        config: FailoverConfig,
+        execute: boolean,
+    ): Promise<DomainResult> {
         const allDomains = await this.keitaroService.getDomains();
         const campaignIds = campaigns.map((c) => c.id);
         const domainsToUpdate = allDomains.filter((domain) =>
@@ -128,17 +269,16 @@ export class FailoverService {
             name: d.name,
             currentCampaignId: d.default_campaign_id,
             currentGroupId: d.group_id || null,
-            willSetCampaignId: defaultCampaignId,
-            willSetGroupId: bannedDomainGroupId,
+            willSetCampaignId: config.defaultCampaignId,
+            willSetGroupId: config.bannedDomainGroupId,
         }));
 
-        // Execute Step 2: Update domains if execute mode
         if (execute) {
             for (const domain of domainsToUpdate) {
                 try {
                     await this.keitaroService.updateDomain(domain.id, {
-                        default_campaign_id: defaultCampaignId,
-                        group_id: bannedDomainGroupId,
+                        default_campaign_id: config.defaultCampaignId,
+                        group_id: config.bannedDomainGroupId,
                     });
                     Logger.debug(
                         `Updated domain ${domain.id} to default campaign`,
@@ -153,28 +293,37 @@ export class FailoverService {
             }
         }
 
-        // Step 3: Preview offers
+        return { domainsToUpdate, domainsPreview };
+    }
+
+    /**
+     * Step 3: Handle offers - move banned app offers to banned group
+     */
+    private async executeStep3Offers(
+        appId: string,
+        config: FailoverConfig,
+        execute: boolean,
+    ): Promise<OfferResult> {
         const allOffers = await this.keitaroService.getOffers();
         const offersToUpdate = allOffers.filter(
             (offer) =>
                 offer.name.includes(appId) &&
-                (offer.group_id === privateOfferGroupId ||
-                    offer.group_id === publicOfferGroupId),
+                (offer.group_id === config.privateOfferGroupId ||
+                    offer.group_id === config.publicOfferGroupId),
         );
 
         const offersPreview = offersToUpdate.map((o) => ({
             id: o.id,
             name: o.name,
             currentGroupId: o.group_id,
-            willMoveToGroupId: bannedOfferGroupId,
+            willMoveToGroupId: config.bannedOfferGroupId,
         }));
 
-        // Execute Step 3: Move offers if execute mode
         if (execute) {
             for (const offer of offersToUpdate) {
                 try {
                     await this.keitaroService.updateOffer(offer.id, {
-                        group_id: bannedOfferGroupId,
+                        group_id: config.bannedOfferGroupId,
                     });
                     Logger.debug(
                         `Moved offer ${offer.id} to banned group`,
@@ -189,15 +338,83 @@ export class FailoverService {
             }
         }
 
-        // Get IDs of offers that will be banned
         const bannedOfferIds = offersToUpdate.map((o) => o.id);
+        return { offersToUpdate, offersPreview, bannedOfferIds };
+    }
 
-        // Step 4: Preview stream changes
+    /**
+     * Step 4: Handle stream - validate config and replace banned offer if needed
+     */
+    private async executeStep4Stream(
+        platform: string,
+        appId: string,
+        config: FailoverConfig,
+        bannedOfferIds: number[],
+        execute: boolean,
+    ): Promise<StreamResult> {
         const stream = await this.keitaroService.getStream(
-            defaultCampaignId,
-            defaultStreamId,
+            config.defaultCampaignId,
+            config.defaultStreamId,
         );
 
+        // Validate stream configuration
+        const configIssues = this.validateStreamConfig(
+            stream,
+            config.expectedLandingId,
+        );
+
+        // Send alert if configuration issues are detected
+        if (configIssues.length > 0 && execute) {
+            await this.telegramService.sendStreamConfigAlert(
+                configIssues,
+                config.defaultStreamId,
+                config.defaultCampaignId,
+            );
+        }
+
+        const currentOffer = stream.offers?.[0];
+        let currentOfferDetails = null;
+        let willReplaceOffer = false;
+        let replacementOffer = null;
+
+        if (currentOffer) {
+            currentOfferDetails = await this.keitaroService.getOfferById(
+                currentOffer.offer_id,
+            );
+
+            // Check if offer is already banned OR will be banned in step 3
+            const isCurrentlyBanned =
+                currentOfferDetails.group_id === config.bannedOfferGroupId;
+            const willBeBanned = bannedOfferIds.includes(currentOffer.offer_id);
+            const isBanned = isCurrentlyBanned || willBeBanned;
+
+            if (isBanned) {
+                willReplaceOffer = true;
+                replacementOffer = await this.findAndReplaceOffer(
+                    platform,
+                    appId,
+                    config,
+                    bannedOfferIds,
+                    execute,
+                );
+            }
+        }
+
+        return {
+            configIssues,
+            currentOfferDetails,
+            willReplaceOffer,
+            replacementOffer,
+        };
+    }
+
+    /**
+     * Validate stream configuration against expected values
+     */
+    private validateStreamConfig(
+        stream: any,
+        expectedLandingId: number,
+    ): string[] {
         const expectedConfig = {
             type: "default",
             state: "active",
@@ -207,6 +424,7 @@ export class FailoverService {
         };
 
         const configIssues: string[] = [];
+
         if (stream.type !== expectedConfig.type)
             configIssues.push(
                 `type: expected "${expectedConfig.type}", got "${stream.type}"`,
@@ -235,167 +453,127 @@ export class FailoverService {
                 `landings: expected [${expectedLandingId}], got ${JSON.stringify(stream.landings)}`,
             );
 
-        const currentOffer = stream.offers?.[0];
-        let currentOfferDetails = null;
-        let willReplaceOffer = false;
-        let replacementOffer = null;
+        return configIssues;
+    }
 
-        if (currentOffer) {
-            currentOfferDetails = await this.keitaroService.getOfferById(
-                currentOffer.offer_id,
+    /**
+     * Find best replacement offer and update stream
+     */
+    private async findAndReplaceOffer(
+        platform: string,
+        appId: string,
+        config: FailoverConfig,
+        bannedOfferIds: number[],
+        execute: boolean,
+    ): Promise<any> {
+        // Generate report to find replacement
+        const reportPayload: ReportPayload = {
+            range: {
+                interval: "yesterday",
+                timezone: "Europe/Warsaw",
+            },
+            columns: [],
+            metrics: ["campaign_unique_clicks"],
+            grouping: ["offer_group_id", "offer_id"],
+            filters: [
+                {
+                    name: "offer_group_id",
+                    operator: "IN_LIST",
+                    expression: [
+                        config.privateOfferGroupId,
+                        config.publicOfferGroupId,
+                    ],
+                },
+                {
+                    name: "is_unique_campaign",
+                    operator: "IS_TRUE",
+                    expression: null,
+                },
+            ],
+            sort: [
+                {
+                    name: "campaign_unique_clicks",
+                    order: "desc",
+                },
+            ],
+            summary: true,
+            limit: 100,
+            offset: 0,
+            extended: true,
+        };
+
+        const report = await this.keitaroService.getReport(reportPayload);
+
+        // Filter out banned offers from report results
+        const validRows = report.rows.filter(
+            (row) => !bannedOfferIds.includes(row.offer_id),
+        );
+
+        let bestOffer = validRows.find(
+            (row) => row.offer_group_id === config.publicOfferGroupId,
+        );
+        let reason = "Best public offer by clicks";
+
+        if (!bestOffer) {
+            bestOffer = validRows.find(
+                (row) => row.offer_group_id === config.privateOfferGroupId,
             );
+            reason = "Best private offer by clicks (no public offers)";
+        }
 
-            // Check if offer is already banned OR will be banned in step 3
-            const isCurrentlyBanned =
-                currentOfferDetails.group_id === bannedOfferGroupId;
-            const willBeBanned = bannedOfferIds.includes(currentOffer.offer_id);
-            const isBanned = isCurrentlyBanned || willBeBanned;
+        if (!bestOffer) {
+            return null;
+        }
 
-            if (isBanned) {
-                willReplaceOffer = true;
+        const bestOfferDetails = await this.keitaroService.getOfferById(
+            bestOffer.offer_id,
+        );
 
-                // Generate report to find replacement
-                const reportPayload: ReportPayload = {
-                    range: {
-                        interval: "yesterday",
-                        timezone: "Europe/Warsaw",
+        const replacementOffer = {
+            id: bestOffer.offer_id,
+            name: bestOfferDetails.name,
+            groupId: bestOfferDetails.group_id,
+            clicks: bestOffer.campaign_unique_clicks,
+            reason,
+        };
+
+        // Execute: Update stream if execute mode
+        if (execute) {
+            try {
+                await this.keitaroService.updateStreamById(
+                    config.defaultStreamId,
+                    {
+                        offers: [
+                            {
+                                offer_id: bestOffer.offer_id,
+                                share: 100,
+                                state: "active",
+                            },
+                        ],
                     },
-                    columns: [],
-                    metrics: ["campaign_unique_clicks"],
-                    grouping: ["offer_group_id", "offer_id"],
-                    filters: [
-                        {
-                            name: "offer_group_id",
-                            operator: "IN_LIST",
-                            expression: [
-                                privateOfferGroupId,
-                                publicOfferGroupId,
-                            ],
-                        },
-                        {
-                            name: "is_unique_campaign",
-                            operator: "IS_TRUE",
-                            expression: null,
-                        },
-                    ],
-                    sort: [
-                        {
-                            name: "campaign_unique_clicks",
-                            order: "desc",
-                        },
-                    ],
-                    summary: true,
-                    limit: 100,
-                    offset: 0,
-                    extended: true,
-                };
-
-                const report =
-                    await this.keitaroService.getReport(reportPayload);
-
-                // Filter out banned offers from report results
-                const validRows = report.rows.filter(
-                    (row) => !bannedOfferIds.includes(row.offer_id),
+                );
+                Logger.info(
+                    `Updated stream ${config.defaultStreamId} with new offer ${bestOffer.offer_id}`,
+                    "FailoverService",
                 );
 
-                let bestOffer = validRows.find(
-                    (row) => row.offer_group_id === publicOfferGroupId,
+                // Send Telegram notification about successful failover
+                const currentAppId = this.extractAppIdFromOfferName(
+                    bestOfferDetails.name,
                 );
-                let reason = "Best public offer by clicks";
-
-                if (!bestOffer) {
-                    bestOffer = validRows.find(
-                        (row) => row.offer_group_id === privateOfferGroupId,
-                    );
-                    reason = "Best private offer by clicks (no public offers)";
-                }
-
-                if (bestOffer) {
-                    const bestOfferDetails =
-                        await this.keitaroService.getOfferById(
-                            bestOffer.offer_id,
-                        );
-                    replacementOffer = {
-                        id: bestOffer.offer_id,
-                        name: bestOfferDetails.name,
-                        groupId: bestOfferDetails.group_id,
-                        clicks: bestOffer.campaign_unique_clicks,
-                        reason,
-                    };
-
-                    // Execute Step 4: Update stream if execute mode
-                    if (execute) {
-                        try {
-                            await this.keitaroService.updateStreamById(
-                                defaultStreamId,
-                                {
-                                    offers: [
-                                        {
-                                            offer_id: bestOffer.offer_id,
-                                            share: 100,
-                                            state: "active",
-                                        },
-                                    ],
-                                },
-                            );
-                            Logger.info(
-                                `Updated stream ${defaultStreamId} with new offer ${bestOffer.offer_id}`,
-                                "FailoverService",
-                            );
-                        } catch (error) {
-                            Logger.error(
-                                `Failed to update stream: ${error.message}`,
-                                "FailoverService",
-                            );
-                        }
-                    }
-                }
+                await this.telegramService.sendFailoverSuccessAlert(
+                    appId,
+                    currentAppId,
+                    platform,
+                );
+            } catch (error) {
+                Logger.error(
+                    `Failed to update stream: ${error.message}`,
+                    "FailoverService",
+                );
             }
         }
 
-        const totalOperations =
-            campaigns.length +
-            domainsToUpdate.length +
-            offersToUpdate.length +
-            (willReplaceOffer ? 1 : 0);
-
-        return {
-            summary: {
-                appId,
-                platform,
-                totalOperations,
-            },
-            step1_campaigns: {
-                found: campaigns.length,
-                campaigns: campaignsPreview,
-            },
-            step2_domains: {
-                found: domainsToUpdate.length,
-                domains: domainsPreview,
-            },
-            step3_offers: {
-                found: offersToUpdate.length,
-                offers: offersPreview,
-            },
-            step4_stream: {
-                streamId: defaultStreamId,
-                campaignId: defaultCampaignId,
-                configValid: configIssues.length === 0,
-                ...(configIssues.length > 0 && { configIssues }),
-                currentOffer: currentOfferDetails
-                    ? {
-                          id: currentOfferDetails.id,
-                          name: currentOfferDetails.name,
-                          groupId: currentOfferDetails.group_id,
-                          isBanned:
-                              currentOfferDetails.group_id ===
-                                  bannedOfferGroupId ||
-                              bannedOfferIds.includes(currentOfferDetails.id),
-                      }
-                    : null,
-                willReplaceOffer,
-                ...(replacementOffer && { replacementOffer }),
-            },
-        };
+        return replacementOffer;
     }
 }

@@ -24,6 +24,7 @@
 Keitaro Management API - це комплексне рішення для автоматизації управління Keitaro трекером. Система забезпечує повний контроль над кампаніями, доменами, офферами та включає інтелектуальну систему автоматичного failover для безперебійної роботи при бані застосунків.
 
 **Технологічний стек:**
+
 - **Backend Framework:** NestJS 10.x
 - **Мова:** TypeScript 5.x
 - **База даних:** MongoDB 6.x + Mongoose
@@ -33,6 +34,7 @@ Keitaro Management API - це комплексне рішення для авт�
 ## ✨ Основні Можливості
 
 ### 🚀 Управління Застосунками
+
 - Повний lifecycle мобільних застосунків (iOS/Android)
 - Версії API: v1 та v2 з розширеним функціоналом
 - Створення та синхронізація застосунків
@@ -40,6 +42,7 @@ Keitaro Management API - це комплексне рішення для авт�
 - Підтримка Organic та Cloaking кампаній
 
 ### 📊 Управління Кампаніями
+
 - Автоматичне створення кампаній для iOS/Android
 - Підтримка різних типів: Organic, Cloaking, Onelink
 - Налаштування traffic source parameters
@@ -47,12 +50,14 @@ Keitaro Management API - це комплексне рішення для авт�
 - Шаблони кампаній для швидкого розгортання
 
 ### 🌐 Управління Доменами
+
 - Конфігурація та роутинг доменів
 - Прив'язка доменів до кампаній
 - Групування доменів
 - Автоматичне перенаправлення трафіку
 
 ### 🎁 Управління Офферами
+
 - Створення офферів з різними типами
 - **Cloaking**: приховування справжнього URL від ботів
 - **Gray Section**: показ різного контенту різним користувачам
@@ -60,28 +65,34 @@ Keitaro Management API - це комплексне рішення для авт�
 - Підтримка Rent офферів
 
 ### 📁 Управління Групами
+
 - Організація кампаній, доменів та офферів у групи
 - Flexible grouping система
 - Швидкий пошук та фільтрація
 
 ### ⚡ Автоматичний Failover
+
 **Унікальна 4-кроková система автоматичного переналаштування:**
+
 1. Переміщення забанених кампаній у спеціальну групу
 2. Автоматична заміна дефолтної кампанії на доменах
 3. Переміщення офферів у групу banned
 4. Інтелектуальна заміна офферів на основі статистики кліків
 
 **Два режими роботи:**
+
 - **Preview Mode (Dry-Run)**: аналіз без внесення змін
 - **Execution Mode**: автоматичне виконання всіх кроків
 
 ### 📈 Система Звітів
+
 - Генерація звітів через Keitaro API
 - Логування конверсій та кліків
 - Статистика для прийняття рішень при failover
 - Інтеграція з Keitaro reporting engine
 
 ### 🔌 Keitaro Proxy
+
 - Direct proxy до Keitaro Admin API
 - Доступ до всіх можливостей Keitaro через єдиний endpoint
 - Автоматична аутентифікація
@@ -110,6 +121,7 @@ src/
 ### API Versioning
 
 Проект використовує кастомний `@VersionController` декоратор для versioning:
+
 - **v1**: Базовий функціонал
 - **v2**: Розширений функціонал з додатковими можливостями
 
@@ -125,28 +137,33 @@ src/
 ### Встановлення
 
 1. **Клонування репозиторію:**
+
 ```bash
 git clone <repository-url>
 cd keitaro_api_ts
 ```
 
 2. **Встановлення залежностей:**
+
 ```bash
 npm install
 ```
 
 3. **Налаштування environment:**
+
 ```bash
 cp .env.example .env
 # Відредагуйте .env файл з вашими налаштуваннями
 ```
 
 4. **Запуск в development режимі:**
+
 ```bash
 npm run start:dev
 ```
 
 5. **Перевірка роботи:**
+
 ```bash
 curl http://localhost:5005/api/failover/webhooks/health
 ```
@@ -178,6 +195,7 @@ docker run -p 5005:5005 --env-file .env keitaro-api
 Створіть `.env` файл на основі `.env.example`:
 
 #### Server Configuration
+
 ```env
 PORT=5005                    # API порт
 NODE_ENV=production          # development або production
@@ -185,6 +203,7 @@ AUTH_TOKEN=your_token_here   # Bearer token для аутентифікації
 ```
 
 #### Keitaro API
+
 ```env
 KEITARO_DOMAIN=https://your-keitaro.com
 KEITARO_API_KEY=your_api_key
@@ -193,12 +212,14 @@ KEITARO_API_KEY_DEV=your_dev_api_key             # для development
 ```
 
 #### Keitaro Groups
+
 ```env
 KEITARO_ORG_GROUP_ID=1       # ID групи для Organic кампаній
 KEITARO_CLO_GROUP_ID=2       # ID групи для Cloaking кампаній
 ```
 
 #### Campaign Templates
+
 ```env
 IOS_CLO_CAMPAIGN_TEMPLATE_ID=100
 IOS_ORG_CAMPAIGN_TEMPLATE_ID=102
@@ -207,6 +228,7 @@ ANDROID_ORG_CAMPAIGN_TEMPLATE_ID=104
 ```
 
 #### Failover Configuration
+
 ```env
 # Campaign Settings
 APPLINK_CAMPAIGN_GROUP_ID=8              # ID групи Applink кампаній
@@ -229,6 +251,7 @@ CAMPAIGNS_PAGE_SIZE=100                  # Розмір сторінки при 
 ```
 
 #### Database
+
 ```env
 MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro
 MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro_dev
@@ -237,6 +260,7 @@ MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro_dev
 ## 📡 API Endpoints
 
 ### Base URL
+
 ```
 http://localhost:5005/api
 ```
@@ -244,6 +268,7 @@ http://localhost:5005/api
 ### Аутентифікація
 
 Всі endpoints потребують Bearer token в headers:
+
 ```bash
 Authorization: Bearer YOUR_AUTH_TOKEN
 ```
@@ -253,11 +278,13 @@ Authorization: Bearer YOUR_AUTH_TOKEN
 #### 1️⃣ Apps Management
 
 **v1 Endpoints:**
+
 - `POST /api/apps/create` - Створення нового застосунку
 - `POST /api/apps/sync` - Синхронізація застосунку
 - `POST /api/apps/copy-campaign` - Копіювання кампанії
 
 **v2 Endpoints (розширений функціонал):**
+
 - `POST /api/v2/apps/create` - Створення з додатковими параметрами
 - `POST /api/v2/apps/onelink` - Створення Onelink кампанії
 - `POST /api/v2/apps/close-geo` - Закриття geo
@@ -288,6 +315,7 @@ curl -X POST http://localhost:5005/api/domains/create \
 - `DELETE /api/offers/:id` - Видалення оффера
 
 **Приклад: Увімкнення Cloaking**
+
 ```bash
 curl -X POST http://localhost:5005/api/offers/cloak/enable \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -306,6 +334,7 @@ curl -X POST http://localhost:5005/api/offers/cloak/enable \
 #### 5️⃣ Failover Webhooks
 
 **Preview Mode (Dry-Run):**
+
 ```bash
 curl -X POST http://localhost:5005/api/failover/webhooks/app-banned/preview \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -317,6 +346,7 @@ curl -X POST http://localhost:5005/api/failover/webhooks/app-banned/preview \
 ```
 
 **Execution Mode:**
+
 ```bash
 curl -X POST http://localhost:5005/api/failover/webhooks/app-banned \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -328,6 +358,7 @@ curl -X POST http://localhost:5005/api/failover/webhooks/app-banned \
 ```
 
 **Health Check:**
+
 ```bash
 curl -X POST http://localhost:5005/api/failover/webhooks/health
 ```
@@ -344,6 +375,7 @@ curl -X POST http://localhost:5005/api/failover/webhooks/health
 - `ALL /api/keitaro/*` - Direct proxy до Keitaro Admin API
 
 Приклад:
+
 ```bash
 # Прямий доступ до Keitaro API через proxy
 curl http://localhost:5005/api/keitaro/admin_api/v1/campaigns \
@@ -363,34 +395,36 @@ App Banned Event → Validation → Failover Service → 4 Steps → Result
 ### 4 Кроки Failover
 
 1. **Крок 1: Кампанії**
-   - Знаходить всі Applink кампанії з забаненим app_id
-   - Переміщує їх у групу "Applink banned"
+    - Знаходить всі Applink кампанії з забаненим app_id
+    - Переміщує їх у групу "Applink banned"
 
 2. **Крок 2: Домени**
-   - Знаходить домени, що використовують забанені кампанії
-   - Змінює їх default_campaign на "Applink" кампанію
-   - Переміщує у групу "Applink banned domains"
+    - Знаходить домени, що використовують забанені кампанії
+    - Змінює їх default_campaign на "Applink" кампанію
+    - Переміщує у групу "Applink banned domains"
 
 3. **Крок 3: Оффери**
-   - Знаходить оффери з забаненим app_id
-   - Переміщує їх у групу "Applink banned offers"
+    - Знаходить оффери з забаненим app_id
+    - Переміщує їх у групу "Applink banned offers"
 
 4. **Крок 4: Stream**
-   - Перевіряє конфігурацію дефолтного stream
-   - Якщо поточний оффер забанений:
-     - Генерує звіт за вчора
-     - Знаходить найкращий оффер (public > private)
-     - Оновлює stream з новим оффером
+    - Перевіряє конфігурацію дефолтного stream
+    - Якщо поточний оффер забанений:
+        - Генерує звіт за вчора
+        - Знаходить найкращий оффер (public > private)
+        - Оновлює stream з новим оффером
 
 ### Preview vs Execution Mode
 
 **Preview Mode** (`/app-banned/preview`):
+
 - ✅ Виконує всі перевірки
 - ✅ Показує що буде змінено
 - ❌ НЕ вносить реальних змін
 - 🎯 Використовуйте для тестування
 
 **Execution Mode** (`/app-banned`):
+
 - ✅ Виконує всі перевірки
 - ✅ Показує що змінено
 - ✅ Вносить реальні зміни в Keitaro
@@ -512,6 +546,7 @@ npm run test:cov
 ### Git Hooks
 
 Проект використовує Husky для автоматичних перевірок:
+
 - **pre-commit**: lint-staged (prettier + eslint)
 - **pre-push**: tests
 
@@ -556,6 +591,7 @@ docker logs -f keitaro-api
 ### Environment Setup
 
 **Development:**
+
 ```env
 NODE_ENV=development
 KEITARO_DOMAIN=https://dev-keitaro.com
@@ -563,6 +599,7 @@ MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro_dev
 ```
 
 **Production:**
+
 ```env
 NODE_ENV=production
 KEITARO_DOMAIN=https://keitaro.com

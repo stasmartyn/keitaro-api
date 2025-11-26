@@ -1,4 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from "@nestjs/common";
+import {
+    Controller,
+    Post,
+    Get,
+    Body,
+    HttpCode,
+    HttpStatus,
+} from "@nestjs/common";
 import { Logger } from "../utils/logger";
 import { AppBannedDto, PreviewResponseDto } from "./dto/app-banned.dto";
 import { FailoverService } from "./failover.service";
@@ -41,7 +48,7 @@ export class FailoverController {
         );
     }
 
-    @Post("webhooks/health")
+    @Get("webhooks/health")
     @HttpCode(HttpStatus.OK)
     health() {
         return {
