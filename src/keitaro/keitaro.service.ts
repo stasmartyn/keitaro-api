@@ -30,6 +30,18 @@ export class KeitaroService {
         }
     }
 
+    async getOffer(id: string) {
+        try {
+            const url = this.buildUrl(`admin_api/v1/offers/${id}`);
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getOffer.name, error);
+        }
+    }
+
     async getAllCampaigns() {
         try {
             const url = this.buildUrl("admin_api/v1/campaigns");
@@ -1217,6 +1229,30 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.buildReport.name, error);
+        }
+    }
+
+    async conversionLog(body: Record<string, any>) {
+        try {
+            const url = this.buildUrl("admin_api/v1/conversions/log");
+            const response = await axios.post(url, body, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.conversionLog.name, error);
+        }
+    }
+
+    async clicksLog(body: Record<string, any>) {
+        try {
+            const url = this.buildUrl("admin_api/v1/clicks/log");
+            const response = await axios.post(url, body, {
+                headers: this.generateHeaders(),
+            });
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.clicksLog.name, error);
         }
     }
 

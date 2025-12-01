@@ -327,7 +327,7 @@ export class AppsV2Service {
                         const res = await this.keitaroClient.updateCampaign(
                             result.cloCampaign.campaignId,
                             {
-                                name: `CLO ${bundle_id} (${name})`,
+                                name: `APP ${bundle_id} (${name})`,
                                 alias,
                                 traffic_source_id: result.trafficSourceId,
                                 group_id: 39,

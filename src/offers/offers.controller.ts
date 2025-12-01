@@ -28,6 +28,11 @@ export class OffersController {
         return this.offersService.getOffers();
     }
 
+    @Get(":id")
+    async getOfferById(@Param("id") id: string) {
+        return this.offersService.getOffer(id);
+    }
+
     @Post("create/multiple")
     async createMultipleOffers(@Body() body: CreateMultipleOffersDto) {
         return this.offersService.createOffer(body);
