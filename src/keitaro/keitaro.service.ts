@@ -1305,6 +1305,350 @@ export class KeitaroService {
         };
     }
 
+    async toggleDenyOrgTraffic(
+        campaignId: number,
+        enable: boolean,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const denyOrgStream = streams.find((stream: any) =>
+                stream.name?.toLowerCase().includes("deny org traffic"),
+            );
+
+            if (!denyOrgStream) {
+                throw new Error("Deny org traffic stream not found");
+            }
+
+            const response = await axios.put(
+                this.buildUrl(`admin_api/v1/streams/${denyOrgStream.id}`),
+                {
+                    state: enable ? "active" : "disabled",
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.toggleDenyOrgTraffic.name, error);
+        }
+    }
+
+    async validateIntegration(campaignId: number): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const issues: any[] = [];
+            const warnings: string[] = [];
+            const createdStreams: any[] = [];
+
+            // Check required streams
+            const testFlow = streams.find((stream: any) =>
+                stream.name?.toLowerCase().includes("test flow"),
+            );
+            const denyAllTraffic = streams.find((stream: any) =>
+                stream.name?.toLowerCase().includes("deny all traffic"),
+            );
+            const denyOrgTraffic = streams.find((stream: any) =>
+                stream.name?.toLowerCase().includes("deny org traffic"),
+            );
+            const defaultFlow = streams.find(
+                (stream: any) => stream.type === "default",
+            );
+
+            // Check test flow
+            if (!testFlow) {
+                const testFlowData = {
+                    campaign_id: campaignId,
+                    name: "test flow",
+                    type: "forced",
+                    position: 1,
+                    state: "disabled",
+                    weight: 0,
+                    action_type: "offer",
+                    action_payload: "3412",
+                    schema: "action",
+                    collect_clicks: true,
+                    filter_or: false,
+                    filters: [
+                        {
+                            name: "country",
+                            mode: "accept",
+                            payload: ["PL", "UA", "RO", "MD"],
+                        },
+                    ],
+                    offers: [
+                        {
+                            offer_id: 3412,
+                            share: 100,
+                            state: "active",
+                        },
+                    ],
+                    landings: [],
+                    triggers: [],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    testFlowData,
+                );
+                createdStreams.push({ name: "test flow", id: created.id });
+            } else {
+                if (testFlow.type !== "forced") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "test flow",
+                        message: "Test flow має бути типу 'forced'",
+                    });
+                }
+
+                if (
+                    !testFlow.offers ||
+                    !testFlow.offers.some(
+                        (offer: any) => offer.offer_id === 3412,
+                    )
+                ) {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "test flow",
+                        message:
+                            "Test flow має містити оффер з id 3412 (query checker)",
+                    });
+                }
+            }
+
+            // Check deny all traffic
+            if (!denyAllTraffic) {
+                const denyAllData = {
+                    campaign_id: campaignId,
+                    name: "deny all traffic",
+                    type: "forced",
+                    position: 2,
+                    state: "active",
+                    weight: 0,
+                    action_type: "do_nothing",
+                    action_payload: "",
+                    schema: "action",
+                    collect_clicks: true,
+                    filter_or: false,
+                    filters: [],
+                    offers: [],
+                    landings: [],
+                    triggers: [],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    denyAllData,
+                );
+                createdStreams.push({
+                    name: "deny all traffic",
+                    id: created.id,
+                });
+            } else {
+                if (denyAllTraffic.type !== "forced") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "deny all traffic",
+                        message: "Deny all traffic має бути типу 'forced'",
+                    });
+                }
+                if (denyAllTraffic.action_type !== "do_nothing") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "deny all traffic",
+                        message:
+                            "Deny all traffic має мати action_type 'do_nothing'",
+                    });
+                }
+            }
+
+            // Check deny org traffic
+            if (!denyOrgTraffic) {
+                const denyOrgData = {
+                    campaign_id: campaignId,
+                    name: "deny org traffic",
+                    type: "forced",
+                    position: 3,
+                    state: "disabled",
+                    weight: 0,
+                    action_type: "do_nothing",
+                    action_payload: "",
+                    schema: "action",
+                    collect_clicks: true,
+                    filter_or: false,
+                    filters: [
+                        {
+                            name: "sub_id_17",
+                            mode: "reject",
+                            payload: null,
+                        },
+                    ],
+                    offers: [],
+                    landings: [],
+                    triggers: [],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    denyOrgData,
+                );
+                createdStreams.push({
+                    name: "deny org traffic",
+                    id: created.id,
+                });
+            } else {
+                if (denyOrgTraffic.type !== "forced") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "deny org traffic",
+                        message: "Deny org traffic має бути типу 'forced'",
+                    });
+                }
+                if (denyOrgTraffic.action_type !== "do_nothing") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "deny org traffic",
+                        message:
+                            "Deny org traffic має мати action_type 'do_nothing'",
+                    });
+                }
+            }
+
+            // Check default flow
+            if (!defaultFlow) {
+                issues.push({
+                    type: "missing_stream",
+                    streamName: "default",
+                    message: "Default потік відсутній",
+                });
+            } else {
+                if (defaultFlow.type !== "default") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: "default",
+                        message: "Default потік має бути типу 'default'",
+                    });
+                }
+            }
+
+            // Check filter flows
+            const filterFlows = streams.filter(
+                (stream: any) =>
+                    stream.name?.toLowerCase().startsWith("filter") &&
+                    stream.type === "forced",
+            );
+            for (const filterFlow of filterFlows) {
+                if (filterFlow.action_type !== "do_nothing") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: filterFlow.name,
+                        message:
+                            "Filter потік має мати action_type 'do_nothing'",
+                    });
+                }
+                if (!filterFlow.filters || filterFlow.filters.length === 0) {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: filterFlow.name,
+                        message: "Filter потік має містити фільтри",
+                    });
+                }
+            }
+
+            // Check naming flows
+            const namingFlows = streams.filter(
+                (stream: any) =>
+                    stream.name?.startsWith("Naming Share:") &&
+                    stream.type === "regular",
+            );
+            for (const namingFlow of namingFlows) {
+                if (namingFlow.action_type !== "campaign") {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: namingFlow.name,
+                        message: "Naming потік має мати action_type 'campaign'",
+                    });
+                }
+                const hasSubId17Filter = namingFlow.filters?.some(
+                    (filter: any) => filter.name === "sub_id_17",
+                );
+                if (!hasSubId17Filter) {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: namingFlow.name,
+                        message: "Naming потік має містити фільтр sub_id_17",
+                    });
+                }
+            }
+
+            // Check extra streams
+            const allowedStreamNames = [
+                "test flow",
+                "deny all traffic",
+                "deny org traffic",
+                "default",
+            ];
+            const extraStreams = streams.filter(
+                (stream: any) =>
+                    !stream.name?.startsWith("Naming Share:") &&
+                    !stream.name?.toLowerCase().startsWith("filter") &&
+                    !allowedStreamNames.some((name) =>
+                        stream.name?.toLowerCase().includes(name),
+                    ) &&
+                    stream.type !== "default",
+            );
+
+            if (extraStreams.length > 0) {
+                warnings.push(
+                    `Знайдено зайві потоки: ${extraStreams
+                        .map((s) => s.name)
+                        .join(", ")}`,
+                );
+            }
+
+            return {
+                valid: issues.length === 0,
+                warnings,
+                createdStreams,
+                issues,
+            };
+        } catch (error) {
+            this.handleKeitaroError(this.validateIntegration.name, error);
+        }
+    }
+
+    async updateDefaultFlowWithOrgCampaign(
+        campaignId: number,
+        orgCampaignId: number,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const defaultFlow = streams.find(
+                (stream: any) => stream.type === "default",
+            );
+
+            if (!defaultFlow) {
+                throw new Error("Default flow not found");
+            }
+
+            const response = await axios.put(
+                this.buildUrl(`admin_api/v1/streams/${defaultFlow.id}`),
+                {
+                    action_type: "campaign",
+                    action_payload: orgCampaignId.toString(),
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(
+                this.updateDefaultFlowWithOrgCampaign.name,
+                error,
+            );
+        }
+    }
+
     private handleKeitaroError(methodName: string, error: any): never {
         // Додаємо назву методу в помилку
         if (error instanceof axios.AxiosError) {

@@ -15,6 +15,8 @@ import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
 import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
+import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
+import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -111,5 +113,15 @@ export class AppsController {
     @Post("toggle-test-flow")
     async toggleTestFlow(@Body() body: ToggleTestFlowDto) {
         return this.appsService.toggleTestFlow(body);
+    }
+
+    @Post("validate-integration")
+    async validateIntegration(@Body() body: ValidateIntegrationDto) {
+        return this.appsService.validateIntegration(body);
+    }
+
+    @Post("toggle-deny-org-traffic")
+    async toggleDenyOrgTraffic(@Body() body: ToggleDenyOrgTrafficDto) {
+        return this.appsService.toggleDenyOrgTraffic(body);
     }
 }

@@ -26,6 +26,8 @@ import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
 import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
+import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
+import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 
 @Injectable()
 export class AppsService {
@@ -268,6 +270,34 @@ export class AppsService {
         );
 
         return toggleTestFlowWithErrorHandler(body);
+    }
+
+    async validateIntegration(body: ValidateIntegrationDto) {
+        const validateIntegrationWithErrorHandler = wrapWithErrorHandler(
+            this.validateIntegrationInternal.bind(this),
+            {
+                functionName: "AppsService.validateIntegration",
+                additionalData: {
+                    endpoint: "POST /v1/apps/validate-integration",
+                },
+            },
+        );
+
+        return validateIntegrationWithErrorHandler(body);
+    }
+
+    async toggleDenyOrgTraffic(body: ToggleDenyOrgTrafficDto) {
+        const toggleDenyOrgTrafficWithErrorHandler = wrapWithErrorHandler(
+            this.toggleDenyOrgTrafficInternal.bind(this),
+            {
+                functionName: "AppsService.toggleDenyOrgTraffic",
+                additionalData: {
+                    endpoint: "POST /v1/apps/toggle-deny-org-traffic",
+                },
+            },
+        );
+
+        return toggleDenyOrgTrafficWithErrorHandler(body);
     }
 
     private async createRentCampaignInternal(body: CreateRentCampaignDto) {
@@ -866,6 +896,31 @@ export class AppsService {
         }
 
         return await this.keitaroClient.toggleTestFlow(campaignId, enable);
+    }
+
+    private async validateIntegrationInternal(body: ValidateIntegrationDto) {
+        const { campaignId } = body;
+
+        if (campaignId === undefined) {
+            throw new BadRequestException("Missing required field: campaignId");
+        }
+
+        return await this.keitaroClient.validateIntegration(campaignId);
+    }
+
+    private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
+        const { campaignId, enable } = body;
+
+        if (campaignId === undefined || enable === undefined) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, enable",
+            );
+        }
+
+        return await this.keitaroClient.toggleDenyOrgTraffic(
+            campaignId,
+            enable,
+        );
     }
 
     private generateUniqueAlias() {

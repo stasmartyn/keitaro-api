@@ -213,6 +213,18 @@ export class AppsV2Service {
                     },
                     path: `admin_api/v1/campaigns/${result.orgCampaign.campaignId}/streams`,
                 },
+                {
+                    key: "updateDefaultFlowWithOrgCampaign",
+                    fn: async () => {
+                        const res =
+                            await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+                                result.cloCampaign.campaignId,
+                                result.orgCampaign.campaignId,
+                            );
+                        return res;
+                    },
+                    path: `admin_api/v1/streams`,
+                },
             ];
 
             for (const step of steps) {
