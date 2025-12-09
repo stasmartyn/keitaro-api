@@ -71,11 +71,39 @@
 
 ## Failover Endpoints
 
+### Authentication
+
+Всі failover endpoints вимагають автентифікації через Bearer token:
+
+**Header:**
+
+```
+Authorization: Bearer your_auth_token_here
+```
+
+**401 Unauthorized Response:**
+
+```json
+{
+    "statusCode": 401,
+    "message": "Invalid token"
+}
+```
+
+Токен налаштовується через змінну `AUTH_TOKEN` у файлі `.env`.
+
 ### 3. App Banned Preview (Dry-Run)
 
 **POST** `/api/v1/failover/webhooks/app-banned/preview`
 
 Виконує dry-run аналіз без внесення змін. Показує що буде змінено при реальному запуску.
+
+**Headers:**
+
+```
+Authorization: Bearer your_auth_token_here
+Content-Type: application/json
+```
 
 **Request:**
 
@@ -158,6 +186,13 @@
 
 Приймає повідомлення про бан застосунку та автоматично виконує failover процес.
 
+**Headers:**
+
+```
+Authorization: Bearer your_auth_token_here
+Content-Type: application/json
+```
+
 **Request:**
 
 ```json
@@ -178,9 +213,15 @@
 
 ### 5. Failover Health Check
 
-**POST** `/api/v1/failover/webhooks/health`
+**GET** `/api/v1/failover/webhooks/health`
 
 Перевіряє доступність failover сервісу.
+
+**Headers:**
+
+```
+Authorization: Bearer your_auth_token_here
+```
 
 **Response:**
 

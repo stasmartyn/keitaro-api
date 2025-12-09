@@ -5,12 +5,15 @@ import {
     Body,
     HttpCode,
     HttpStatus,
+    UseGuards,
 } from "@nestjs/common";
 import { Logger } from "../utils/logger";
 import { AppBannedDto, PreviewResponseDto } from "./dto/app-banned.dto";
 import { FailoverService } from "./failover.service";
+import { TokenGuard } from "../auth/token.guard";
 
 @Controller("failover")
+@UseGuards(TokenGuard)
 export class FailoverController {
     constructor(private readonly failoverService: FailoverService) {}
 

@@ -5,43 +5,13 @@ import { Logger } from "../utils/logger";
 import { ReportPayload } from "../keitaro/interfaces/failover.interface";
 import { PreviewResponseDto } from "./dto/app-banned.dto";
 import { TelegramService } from "../notifications/telegram.service";
-
-interface FailoverConfig {
-    campaignGroupId: number;
-    bannedCampaignGroupId: number;
-    minCampaignId: number;
-    pageSize: number;
-    defaultCampaignId: number;
-    bannedDomainGroupId: number;
-    privateOfferGroupId: number;
-    publicOfferGroupId: number;
-    bannedOfferGroupId: number;
-    defaultStreamId: number;
-    expectedLandingId: number;
-}
-
-interface CampaignResult {
-    campaigns: any[];
-    campaignsPreview: any[];
-}
-
-interface DomainResult {
-    domainsToUpdate: any[];
-    domainsPreview: any[];
-}
-
-interface OfferResult {
-    offersToUpdate: any[];
-    offersPreview: any[];
-    bannedOfferIds: number[];
-}
-
-interface StreamResult {
-    configIssues: string[];
-    currentOfferDetails: any;
-    willReplaceOffer: boolean;
-    replacementOffer: any;
-}
+import {
+    FailoverConfig,
+    CampaignResult,
+    DomainResult,
+    OfferResult,
+    StreamResult,
+} from "./interfaces/failover-internal.interface";
 
 @Injectable()
 export class FailoverService {
