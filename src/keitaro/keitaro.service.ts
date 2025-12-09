@@ -2,6 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios from "axios";
 import { Logger } from "../utils/logger";
+import { withRetry } from "../utils/retry.util";
+import {
+    Campaign,
+    Domain,
+    Stream,
+    ReportPayload,
+    ReportResponse,
+} from "./interfaces/failover.interface";
 
 import { trafficSourceParams } from "./constants/traffic-source-params";
 import { campaignParams } from "./constants/campaign-params";
@@ -1245,5 +1253,190 @@ export class KeitaroService {
             throw error;
         }
         throw error;
+    }
+
+    // Failover methods
+    async getCampaignsWithPagination(
+        page: number = 1,
+        limit: number = 100,
+    ): Promise<Campaign[]> {
+        return withRetry(
+            async () => {
+                const url = this.buildUrl("admin_api/v1/campaigns");
+                const offset = (page - 1) * limit;
+                const response = await axios.get(url, {
+                    headers: this.generateHeaders(),
+                    params: { offset, limit },
+                });
+                Logger.debug(
+                    `Fetched ${response.data.length} campaigns from page ${page} (offset: ${offset})`,
+                    "KeitaroService",
+                );
+                return response.data;
+            },
+            {
+                maxAttempts: 3,
+                delay: 1000,
+                onRetry: (attempt) =>
+                    Logger.warn(
+                        `Retrying getCampaignsWithPagination, attempt ${attempt}`,
+                        "KeitaroService",
+                    ),
+            },
+        );
+    }
+
+    async getAllCampaignsFromMinId(
+        appId: string,
+        campaignGroupId: number,
+        minCampaignId: number,
+        pageSize: number = 100,
+    ): Promise<Campaign[]> {
+        const allCampaigns: Campaign[] = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore) {
+            const campaigns = await this.getCampaignsWithPagination(
+                page,
+                pageSize,
+            );
+
+            if (!campaigns || campaigns.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            const filteredCampaigns = campaigns.filter(
+                (c) =>
+                    c.id >= minCampaignId &&
+                    c.group_id === campaignGroupId &&
+                    c.name.includes(appId),
+            );
+
+            allCampaigns.push(...filteredCampaigns);
+
+            const minIdInPage = Math.min(...campaigns.map((c) => c.id));
+            if (minIdInPage < minCampaignId) {
+                hasMore = false;
+            }
+
+            page++;
+        }
+
+        Logger.info(
+            `Found ${allCampaigns.length} matching campaigns for app_id: ${appId}`,
+            "KeitaroService",
+        );
+        return allCampaigns;
+    }
+
+    async updateDomain(id: number, data: Partial<Domain>): Promise<Domain> {
+        return withRetry(
+            async () => {
+                const url = this.buildUrl(`admin_api/v1/domains/${id}`);
+                const response = await axios.put(url, data, {
+                    headers: this.generateHeaders(),
+                });
+                Logger.debug(`Updated domain ${id}`, "KeitaroService");
+                return response.data;
+            },
+            {
+                maxAttempts: 3,
+                delay: 1000,
+                onRetry: (attempt) =>
+                    Logger.warn(
+                        `Retrying updateDomain ${id}, attempt ${attempt}`,
+                        "KeitaroService",
+                    ),
+            },
+        );
+    }
+
+    async getStream(campaignId: number, streamId: number): Promise<Stream> {
+        return withRetry(
+            async () => {
+                const url = this.buildUrl(
+                    `admin_api/v1/campaigns/${campaignId}/streams`,
+                );
+                const response = await axios.get(url, {
+                    headers: this.generateHeaders(),
+                });
+                const streams = response.data;
+
+                const stream = streams.find((s: Stream) => s.id === streamId);
+
+                if (!stream) {
+                    throw new Error(
+                        `Stream ${streamId} not found in campaign ${campaignId}`,
+                    );
+                }
+
+                Logger.debug(
+                    `Fetched stream ${streamId} from campaign ${campaignId}`,
+                    "KeitaroService",
+                );
+                return stream;
+            },
+            {
+                maxAttempts: 3,
+                delay: 1000,
+                onRetry: (attempt) =>
+                    Logger.warn(
+                        `Retrying getStream ${streamId}, attempt ${attempt}`,
+                        "KeitaroService",
+                    ),
+            },
+        );
+    }
+
+    async updateStreamById(
+        streamId: number,
+        data: Partial<Stream>,
+    ): Promise<Stream> {
+        return withRetry(
+            async () => {
+                const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
+                const response = await axios.put(url, data, {
+                    headers: this.generateHeaders(),
+                });
+                Logger.debug(`Updated stream ${streamId}`, "KeitaroService");
+                return response.data;
+            },
+            {
+                maxAttempts: 3,
+                delay: 1000,
+                onRetry: (attempt) =>
+                    Logger.warn(
+                        `Retrying updateStreamById ${streamId}, attempt ${attempt}`,
+                        "KeitaroService",
+                    ),
+            },
+        );
+    }
+
+    async getReport(payload: ReportPayload): Promise<ReportResponse> {
+        return withRetry(
+            async () => {
+                const url = this.buildUrl("admin_api/v1/report/build");
+                const response = await axios.post(url, payload, {
+                    headers: this.generateHeaders(),
+                });
+                Logger.debug(
+                    `Generated report with ${response.data.rows?.length || 0} rows`,
+                    "KeitaroService",
+                );
+                return response.data;
+            },
+            {
+                maxAttempts: 3,
+                delay: 1000,
+                onRetry: (attempt) =>
+                    Logger.warn(
+                        `Retrying getReport, attempt ${attempt}`,
+                        "KeitaroService",
+                    ),
+            },
+        );
     }
 }
