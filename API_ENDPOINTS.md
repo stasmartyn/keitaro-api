@@ -95,6 +95,27 @@ curl -X POST http://localhost:5005/api/v2/apps/create-campaign \
   }'
 ```
 
+### Приклад відповіді (Response)
+
+```json
+{
+  "trafficSourceId": 123,
+  "orgCampaign": {
+    "campaignId": 456,
+    "campaignToken": "abc123def456",
+    "campaignAlias": "xyz789abc",
+    "orgFalseId": 789
+  },
+  "cloCampaign": {
+    "campaignId": 321,
+    "campaignToken": "def456ghi789",
+    "campaignAlias": "jkl012mno",
+    "clTrueId": 654,
+    "clFalseId": 987
+  }
+}
+```
+
 ### Файли з логікою
 
 - **Controller**: `src/apps/v2/apps.controller.ts` (рядок 10-12)
@@ -124,6 +145,26 @@ curl -X POST http://localhost:5005/api/v1/apps/close-cloak \
   }'
 ```
 
+### Приклад відповіді (Response)
+
+```json
+{
+  "id": 789,
+  "campaign_id": 123,
+  "name": "deny all traffic",
+  "type": "forced",
+  "state": "active",
+  "action_type": "do_nothing",
+  "position": 2,
+  "weight": 0,
+  "schema": "action",
+  "collect_clicks": true,
+  "filters": [],
+  "offers": [],
+  "landings": []
+}
+```
+
 ### Файли з логікою
 
 - **Controller**: `src/apps/v1/apps.controller.ts` (рядок 93-95)
@@ -150,6 +191,38 @@ curl -X POST http://localhost:5005/api/v1/apps/toggle-test-flow \
   }'
 ```
 
+### Приклад відповіді (Response)
+
+```json
+{
+  "id": 456,
+  "campaign_id": 123,
+  "name": "test flow",
+  "type": "forced",
+  "state": "active",
+  "action_type": "http",
+  "position": 1,
+  "weight": 0,
+  "schema": "landings",
+  "collect_clicks": true,
+  "filters": [
+    {
+      "name": "country",
+      "mode": "accept",
+      "payload": ["PL", "UA", "RO", "MD"]
+    }
+  ],
+  "offers": [
+    {
+      "offer_id": 3412,
+      "share": 100,
+      "state": "active"
+    }
+  ],
+  "landings": []
+}
+```
+
 ### Файли з логікою
 
 - **Controller**: `src/apps/v1/apps.controller.ts` (рядок 113-115)
@@ -174,6 +247,33 @@ curl -X POST http://localhost:5005/api/v1/apps/toggle-deny-org-traffic \
     "campaignId": 123,
     "enable": true
   }'
+```
+
+### Приклад відповіді (Response)
+
+```json
+{
+  "id": 234,
+  "campaign_id": 123,
+  "name": "deny org traffic",
+  "type": "forced",
+  "state": "active",
+  "action_type": "do_nothing",
+  "position": 3,
+  "weight": 0,
+  "schema": "action",
+  "collect_clicks": true,
+  "filter_or": false,
+  "filters": [
+    {
+      "name": "sub_id_17",
+      "mode": "reject",
+      "payload": null
+    }
+  ],
+  "offers": [],
+  "landings": []
+}
 ```
 
 ### Файли з логікою
@@ -203,6 +303,32 @@ curl -X POST http://localhost:5005/api/v1/apps/share-naming \
   }'
 ```
 
+### Приклад відповіді (Response)
+
+```json
+{
+  "id": 567,
+  "campaign_id": 123,
+  "name": "Naming Share: test_naming",
+  "type": "regular",
+  "state": "active",
+  "action_type": "campaign",
+  "action_payload": "456",
+  "position": 1,
+  "weight": 100,
+  "schema": "landings",
+  "filters": [
+    {
+      "name": "sub_id_17",
+      "mode": "accept",
+      "payload": ["test_naming"]
+    }
+  ],
+  "offers": [],
+  "landings": []
+}
+```
+
 ### Файли з логікою
 
 - **Controller**: `src/apps/v1/apps.controller.ts` (рядок 108-110)
@@ -229,6 +355,32 @@ curl -X POST http://localhost:5005/api/v1/apps/close-geo \
   }'
 ```
 
+### Приклад відповіді (Response)
+
+```json
+{
+  "id": 345,
+  "campaign_id": 123,
+  "name": "closed geo filter",
+  "type": "forced",
+  "state": "active",
+  "action_type": "do_nothing",
+  "position": 1,
+  "weight": 0,
+  "schema": "action",
+  "collect_clicks": true,
+  "filters": [
+    {
+      "name": "country",
+      "mode": "reject",
+      "payload": ["US"]
+    }
+  ],
+  "offers": [],
+  "landings": []
+}
+```
+
 ### Файли з логікою
 
 - **Controller**: `src/apps/v1/apps.controller.ts` (рядок 103-105)
@@ -252,6 +404,50 @@ curl -X POST http://localhost:5005/api/v1/apps/validate-integration \
   -d '{
     "campaignId": 123
   }'
+```
+
+### Приклад відповіді (Response)
+
+```json
+{
+  "valid": true,
+  "warnings": [],
+  "createdStreams": [
+    {
+      "name": "test flow",
+      "id": 456
+    },
+    {
+      "name": "deny org traffic",
+      "id": 234
+    }
+  ],
+  "issues": []
+}
+```
+
+### Приклад відповіді з помилками (Response)
+
+```json
+{
+  "valid": false,
+  "warnings": [
+    "Знайдено зайві потоки: extra_stream_1, extra_stream_2"
+  ],
+  "createdStreams": [],
+  "issues": [
+    {
+      "type": "incorrect_config",
+      "streamName": "filter test flow",
+      "message": "Filter потік має містити фільтри"
+    },
+    {
+      "type": "incorrect_config",
+      "streamName": "Naming Share: test_naming",
+      "message": "Naming потік має містити фільтр sub_id_17"
+    }
+  ]
+}
 ```
 
 ### Файли з логікою
