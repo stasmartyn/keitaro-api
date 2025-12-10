@@ -46,6 +46,10 @@ export function wrapWithErrorHandler<T extends any[], R>(
             const responseData =
                 error instanceof AxiosError ? error.response?.data : undefined;
 
+            // Якщо є streamParams в помилці (з KeitaroService), використовуємо їх замість args
+            const streamParams = (error as any)?.streamParams;
+            const paramsToLog = streamParams || context.params || args;
+
             const errorData = {
                 functionName: context.functionName,
                 functionNameOnly,
@@ -57,7 +61,7 @@ export function wrapWithErrorHandler<T extends any[], R>(
                     data: responseData,
                 },
                 ...(requestUrl && { requestUrl }),
-                params: context.params || args,
+                params: paramsToLog,
                 additionalData: context.additionalData,
                 timestamp: new Date().toISOString(),
             };

@@ -831,12 +831,51 @@ export class KeitaroService {
         try {
             const streams = await this.getCampaignStreams(campaignId);
 
-            const denyAllStream = streams.find((stream: any) =>
-                stream.name.toLowerCase().includes("deny all traffic"),
-            );
+            let denyAllStream = streams.find((stream: any) => {
+                const name = stream.name?.toLowerCase() || "";
+                return (
+                    name.includes("deny all traffic") ||
+                    name.includes("deny all") ||
+                    name.includes("block all")
+                );
+            });
 
             if (!denyAllStream) {
-                throw new Error("Deny all traffic stream not found");
+                denyAllStream = streams.find((stream: any) => {
+                    return (
+                        stream.type === "forced" &&
+                        stream.action_type === "do_nothing" &&
+                        (stream.name?.toLowerCase() === "false" ||
+                            stream.filters?.length === 0 ||
+                            (Array.isArray(stream.filters) &&
+                                stream.filters.length > 0 &&
+                                stream.filters.some(
+                                    (f: any) =>
+                                        f.name === "country" &&
+                                        f.mode === "reject",
+                                )))
+                    );
+                });
+            }
+
+            if (!denyAllStream) {
+                Logger.warn(
+                    "Deny all traffic stream not found",
+                    {
+                        campaignId,
+                        availableStreams: streams.map((s: any) => ({
+                            id: s.id,
+                            name: s.name,
+                            type: s.type,
+                            action_type: s.action_type,
+                            filters_count: s.filters?.length || 0,
+                        })),
+                    },
+                    "KeitaroService.closeCloak",
+                );
+                throw new Error(
+                    `Deny all traffic stream not found in campaign ${campaignId}. Available streams: ${streams.map((s: any) => s.name).join(", ")}`,
+                );
             }
 
             const url = this.buildUrl(
@@ -1067,18 +1106,22 @@ export class KeitaroService {
     }
 
     async createStream(campaignId: number, streamData: any) {
+        const params = {
+            campaign_id: campaignId,
+            ...streamData,
+        };
+
         try {
             const url = this.buildUrl("admin_api/v1/streams");
-            const params = {
-                campaign_id: campaignId,
-                ...streamData,
-            };
             const response = await axios.post(url, params, {
                 headers: this.generateHeaders(),
             });
 
             return response.data;
         } catch (error) {
+            if (error instanceof axios.AxiosError) {
+                (error as any).streamParams = params;
+            }
             this.handleKeitaroError(this.createStream.name, error);
         }
     }
@@ -1342,32 +1385,28 @@ export class KeitaroService {
             const warnings: string[] = [];
             const createdStreams: any[] = [];
 
-            // Check required streams
-            const testFlow = streams.find((stream: any) =>
-                stream.name?.toLowerCase().includes("test flow"),
+            const testFlow = streams.find(
+                (s) => s.name?.toLowerCase() === "test flow",
             );
-            const denyAllTraffic = streams.find((stream: any) =>
-                stream.name?.toLowerCase().includes("deny all traffic"),
+            const denyAllTraffic = streams.find(
+                (s) => s.name?.toLowerCase() === "deny all traffic",
             );
-            const denyOrgTraffic = streams.find((stream: any) =>
-                stream.name?.toLowerCase().includes("deny org traffic"),
+            const denyOrgTraffic = streams.find(
+                (s) => s.name?.toLowerCase() === "deny org traffic",
             );
-            const defaultFlow = streams.find(
-                (stream: any) => stream.type === "default",
-            );
+            const defaultFlow = streams.find((s) => s.type === "default");
 
-            // Check test flow
             if (!testFlow) {
                 const testFlowData = {
                     campaign_id: campaignId,
                     name: "test flow",
                     type: "forced",
+                    schema: "landings",
+                    action_type: "http",
+                    action_payload: "",
                     position: 1,
                     state: "disabled",
                     weight: 0,
-                    action_type: "offer",
-                    action_payload: "3412",
-                    schema: "action",
                     collect_clicks: true,
                     filter_or: false,
                     filters: [
@@ -1392,44 +1431,54 @@ export class KeitaroService {
                     testFlowData,
                 );
                 createdStreams.push({ name: "test flow", id: created.id });
-            } else {
-                if (testFlow.type !== "forced") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "test flow",
-                        message: "Test flow має бути типу 'forced'",
-                    });
-                }
-
-                if (
-                    !testFlow.offers ||
-                    !testFlow.offers.some(
-                        (offer: any) => offer.offer_id === 3412,
-                    )
-                ) {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "test flow",
-                        message:
-                            "Test flow має містити оффер з id 3412 (query checker)",
-                    });
-                }
             }
 
-            // Check deny all traffic
+            const testFlowFilter = streams.find(
+                (s) => s.name?.toLowerCase() === "filter test flow",
+            );
+            if (!testFlowFilter) {
+                const filterData = {
+                    campaign_id: campaignId,
+                    name: "filter test flow",
+                    type: "forced",
+                    schema: "action",
+                    action_type: "do_nothing",
+                    action_payload: "",
+                    position: 1,
+                    state: "disabled",
+                    weight: 0,
+                    collect_clicks: true,
+                    filter_or: false,
+                    filters: [
+                        {
+                            name: "country",
+                            mode: "accept",
+                            payload: ["PL", "UA", "RO", "MD"],
+                        },
+                    ],
+                    offers: [],
+                    landings: [],
+                    triggers: [],
+                };
+                const created = await this.createStream(campaignId, filterData);
+                createdStreams.push({
+                    name: "filter test flow",
+                    id: created.id,
+                });
+            }
+
             if (!denyAllTraffic) {
                 const denyAllData = {
                     campaign_id: campaignId,
                     name: "deny all traffic",
                     type: "forced",
+                    schema: "action",
+                    action_type: "do_nothing",
+                    action_payload: "",
                     position: 2,
                     state: "active",
                     weight: 0,
-                    action_type: "do_nothing",
-                    action_payload: "",
-                    schema: "action",
                     collect_clicks: true,
-                    filter_or: false,
                     filters: [],
                     offers: [],
                     landings: [],
@@ -1443,44 +1492,23 @@ export class KeitaroService {
                     name: "deny all traffic",
                     id: created.id,
                 });
-            } else {
-                if (denyAllTraffic.type !== "forced") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "deny all traffic",
-                        message: "Deny all traffic має бути типу 'forced'",
-                    });
-                }
-                if (denyAllTraffic.action_type !== "do_nothing") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "deny all traffic",
-                        message:
-                            "Deny all traffic має мати action_type 'do_nothing'",
-                    });
-                }
             }
 
-            // Check deny org traffic
             if (!denyOrgTraffic) {
                 const denyOrgData = {
                     campaign_id: campaignId,
                     name: "deny org traffic",
                     type: "forced",
+                    schema: "action",
+                    action_type: "do_nothing",
+                    action_payload: "",
                     position: 3,
                     state: "disabled",
                     weight: 0,
-                    action_type: "do_nothing",
-                    action_payload: "",
-                    schema: "action",
                     collect_clicks: true,
                     filter_or: false,
                     filters: [
-                        {
-                            name: "sub_id_17",
-                            mode: "reject",
-                            payload: null,
-                        },
+                        { name: "sub_id_17", mode: "reject", payload: null },
                     ],
                     offers: [],
                     landings: [],
@@ -1494,56 +1522,38 @@ export class KeitaroService {
                     name: "deny org traffic",
                     id: created.id,
                 });
-            } else {
-                if (denyOrgTraffic.type !== "forced") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "deny org traffic",
-                        message: "Deny org traffic має бути типу 'forced'",
-                    });
-                }
-                if (denyOrgTraffic.action_type !== "do_nothing") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "deny org traffic",
-                        message:
-                            "Deny org traffic має мати action_type 'do_nothing'",
-                    });
-                }
             }
 
-            // Check default flow
             if (!defaultFlow) {
-                issues.push({
-                    type: "missing_stream",
-                    streamName: "default",
-                    message: "Default потік відсутній",
-                });
-            } else {
-                if (defaultFlow.type !== "default") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: "default",
-                        message: "Default потік має бути типу 'default'",
-                    });
-                }
+                const defaultData = {
+                    campaign_id: campaignId,
+                    name: "default",
+                    type: "default",
+                    schema: "action",
+                    action_type: "campaign",
+                    action_payload: campaignId,
+                    position: 999,
+                    state: "active",
+                    weight: 0,
+                    collect_clicks: true,
+                    filters: [],
+                    offers: [],
+                    landings: [],
+                    triggers: [],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    defaultData,
+                );
+                createdStreams.push({ name: "default", id: created.id });
             }
 
-            // Check filter flows
             const filterFlows = streams.filter(
-                (stream: any) =>
-                    stream.name?.toLowerCase().startsWith("filter") &&
-                    stream.type === "forced",
+                (s) =>
+                    s.name?.toLowerCase().startsWith("filter") &&
+                    s.type === "filter",
             );
             for (const filterFlow of filterFlows) {
-                if (filterFlow.action_type !== "do_nothing") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: filterFlow.name,
-                        message:
-                            "Filter потік має мати action_type 'do_nothing'",
-                    });
-                }
                 if (!filterFlow.filters || filterFlow.filters.length === 0) {
                     issues.push({
                         type: "incorrect_config",
@@ -1551,13 +1561,18 @@ export class KeitaroService {
                         message: "Filter потік має містити фільтри",
                     });
                 }
+                if (filterFlow.action_type) {
+                    issues.push({
+                        type: "incorrect_config",
+                        streamName: filterFlow.name,
+                        message: "Filter потік не має мати action_type",
+                    });
+                }
             }
 
-            // Check naming flows
             const namingFlows = streams.filter(
-                (stream: any) =>
-                    stream.name?.startsWith("Naming Share:") &&
-                    stream.type === "regular",
+                (s) =>
+                    s.name?.startsWith("Naming Share:") && s.type === "regular",
             );
             for (const namingFlow of namingFlows) {
                 if (namingFlow.action_type !== "campaign") {
@@ -1568,7 +1583,7 @@ export class KeitaroService {
                     });
                 }
                 const hasSubId17Filter = namingFlow.filters?.some(
-                    (filter: any) => filter.name === "sub_id_17",
+                    (f) => f.name === "sub_id_17",
                 );
                 if (!hasSubId17Filter) {
                     issues.push({
@@ -1579,28 +1594,23 @@ export class KeitaroService {
                 }
             }
 
-            // Check extra streams
-            const allowedStreamNames = [
+            const allowedNames = [
                 "test flow",
+                "filter test flow",
                 "deny all traffic",
                 "deny org traffic",
                 "default",
             ];
             const extraStreams = streams.filter(
-                (stream: any) =>
-                    !stream.name?.startsWith("Naming Share:") &&
-                    !stream.name?.toLowerCase().startsWith("filter") &&
-                    !allowedStreamNames.some((name) =>
-                        stream.name?.toLowerCase().includes(name),
-                    ) &&
-                    stream.type !== "default",
+                (s) =>
+                    !s.name?.startsWith("Naming Share:") &&
+                    !s.name?.toLowerCase().startsWith("filter") &&
+                    !allowedNames.includes(s.name?.toLowerCase()) &&
+                    s.type !== "default",
             );
-
             if (extraStreams.length > 0) {
                 warnings.push(
-                    `Знайдено зайві потоки: ${extraStreams
-                        .map((s) => s.name)
-                        .join(", ")}`,
+                    `Знайдено зайві потоки: ${extraStreams.map((s) => s.name).join(", ")}`,
                 );
             }
 
@@ -1650,7 +1660,6 @@ export class KeitaroService {
     }
 
     private handleKeitaroError(methodName: string, error: any): never {
-        // Додаємо назву методу в помилку
         if (error instanceof axios.AxiosError) {
             (error as any).isKeitaroError = true;
             (error as any).keitaroMethod = methodName;

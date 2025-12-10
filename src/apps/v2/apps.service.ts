@@ -56,12 +56,6 @@ export class AppsV2Service {
                 campaign_id,
             } = body;
 
-            const campaignId =
-                campaign_id || isIos
-                    ? this.configService.get("keitaro.iosCloCampaignTemplateId")
-                    : this.configService.get(
-                          "keitaro.androidCloCampaignTemplateId",
-                      );
             if (!name || !bundle_id) {
                 throw new BadRequestException("Missing required fields.");
             }
@@ -101,13 +95,21 @@ export class AppsV2Service {
                 {
                     key: "copyCLOCampaign",
                     fn: async () => {
-                        const templateId = isIos
-                            ? this.configService.get(
-                                  "keitaro.iosCloCampaignTemplateId",
-                              )
-                            : this.configService.get(
-                                  "keitaro.androidCloCampaignTemplateId",
-                              );
+                        const templateId =
+                            campaign_id ||
+                            (isIos
+                                ? this.configService.get<number>(
+                                      "keitaro.iosCloCampaignTemplateId",
+                                  )
+                                : this.configService.get<number>(
+                                      "keitaro.androidCloCampaignTemplateId",
+                                  ));
+
+                        if (!templateId || isNaN(templateId)) {
+                            throw new BadRequestException(
+                                `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}CloCampaignTemplateId`,
+                            );
+                        }
 
                         const res =
                             await this.keitaroClient.copyCampaign(templateId);
@@ -120,7 +122,7 @@ export class AppsV2Service {
                         };
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${campaignId}/clone`,
+                    path: `admin_api/v1/campaigns/${campaign_id || (isIos ? this.configService.get("keitaro.iosCloCampaignTemplateId") : this.configService.get("keitaro.androidCloCampaignTemplateId"))}/clone`,
                 },
                 {
                     key: "getCLOCampaignFalseStreamId",
@@ -160,12 +162,18 @@ export class AppsV2Service {
                     key: "copyORGCampaign",
                     fn: async () => {
                         const templateId = isIos
-                            ? this.configService.get(
+                            ? this.configService.get<number>(
                                   "keitaro.iosOrgCampaignTemplateId",
                               )
-                            : this.configService.get(
+                            : this.configService.get<number>(
                                   "keitaro.androidOrgCampaignTemplateId",
                               );
+
+                        if (!templateId || isNaN(templateId)) {
+                            throw new BadRequestException(
+                                `Template ID not found. Please configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
+                            );
+                        }
 
                         const res =
                             await this.keitaroClient.copyCampaign(templateId);
@@ -297,9 +305,15 @@ export class AppsV2Service {
                 },
             };
 
-            const templateId = this.configService.get(
+            const templateId = this.configService.get<number>(
                 "keitaro.newFlowCloCampaignTemplateId",
             );
+
+            if (!templateId || isNaN(templateId)) {
+                throw new BadRequestException(
+                    "Template ID not found. Please configure keitaro.newFlowCloCampaignTemplateId",
+                );
+            }
 
             const steps = [
                 {
