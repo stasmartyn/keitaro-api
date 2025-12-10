@@ -95,11 +95,6 @@ export class AppsController {
         return this.appsService.closeCloak(body);
     }
 
-    @Post("allow-all-traffic")
-    async allowAllTraffic(@Body() body: AllowTrafficDto) {
-        return this.appsService.allowAllTraffic(body);
-    }
-
     @Post("close-geo")
     async closeGeo(@Body() body: CloseGeoDto) {
         return this.appsService.closeGeo(body);
@@ -108,6 +103,11 @@ export class AppsController {
     @Post("share-naming")
     async shareNaming(@Body() body: ShareNamingDto) {
         return this.appsService.shareNaming(body);
+    }
+
+    @Post("allow-all-traffic")
+    async allowAllTraffic(@Body() body: AllowTrafficDto) {
+        return this.appsService.allowAllTraffic(body);
     }
 
     @Post("toggle-test-flow")

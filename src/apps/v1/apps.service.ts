@@ -216,20 +216,6 @@ export class AppsService {
         return closeCloakWithErrorHandler(body);
     }
 
-    async allowAllTraffic(body: AllowTrafficDto) {
-        const allowAllTrafficWithErrorHandler = wrapWithErrorHandler(
-            this.allowAllTrafficInternal.bind(this),
-            {
-                functionName: "AppsService.allowAllTraffic",
-                additionalData: {
-                    endpoint: "POST /v1/apps/allow-all-traffic",
-                },
-            },
-        );
-
-        return allowAllTrafficWithErrorHandler(body);
-    }
-
     async closeGeo(body: CloseGeoDto) {
         const closeGeoWithErrorHandler = wrapWithErrorHandler(
             this.closeGeoInternal.bind(this),
@@ -256,6 +242,20 @@ export class AppsService {
         );
 
         return shareNamingWithErrorHandler(body);
+    }
+
+    async allowAllTraffic(body: AllowTrafficDto) {
+        const allowAllTrafficWithErrorHandler = wrapWithErrorHandler(
+            this.allowAllTrafficInternal.bind(this),
+            {
+                functionName: "AppsService.allowAllTraffic",
+                additionalData: {
+                    endpoint: "POST /v1/apps/allow-all-traffic",
+                },
+            },
+        );
+
+        return allowAllTrafficWithErrorHandler(body);
     }
 
     async toggleTestFlow(body: ToggleTestFlowDto) {

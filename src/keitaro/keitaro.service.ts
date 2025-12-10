@@ -1106,22 +1106,18 @@ export class KeitaroService {
     }
 
     async createStream(campaignId: number, streamData: any) {
-        const params = {
-            campaign_id: campaignId,
-            ...streamData,
-        };
-
         try {
             const url = this.buildUrl("admin_api/v1/streams");
+            const params = {
+                campaign_id: campaignId,
+                ...streamData,
+            };
             const response = await axios.post(url, params, {
                 headers: this.generateHeaders(),
             });
 
             return response.data;
         } catch (error) {
-            if (error instanceof axios.AxiosError) {
-                (error as any).streamParams = params;
-            }
             this.handleKeitaroError(this.createStream.name, error);
         }
     }
