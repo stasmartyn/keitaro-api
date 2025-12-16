@@ -33,6 +33,8 @@ export default () => ({
         ),
         iosSubId: process.env.IOS_SUB_ID,
         androidSubId: process.env.ANDROID_SUB_ID,
+        queryCheckerOfferId:
+            parseInt(process.env.KEITARO_QUERY_CHECKER_OFFER_ID, 10) || 3412,
     },
     database: {
         dev_uri: process.env.MONGO_DATABASE_URI_DEV,

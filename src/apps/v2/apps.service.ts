@@ -77,6 +77,36 @@ export class AppsV2Service {
                 },
             };
 
+            const cloCampaignTemplateId =
+                campaign_id ||
+                (isIos
+                    ? this.configService.get<number>(
+                          "keitaro.iosCloCampaignTemplateId",
+                      )
+                    : this.configService.get<number>(
+                          "keitaro.androidCloCampaignTemplateId",
+                      ));
+
+            if (!cloCampaignTemplateId || isNaN(cloCampaignTemplateId)) {
+                throw new BadRequestException(
+                    `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}CloCampaignTemplateId`,
+                );
+            }
+
+            const orgCampaignTemplateId = isIos
+                ? this.configService.get<number>(
+                      "keitaro.iosOrgCampaignTemplateId",
+                  )
+                : this.configService.get<number>(
+                      "keitaro.androidOrgCampaignTemplateId",
+                  );
+
+            if (!orgCampaignTemplateId || isNaN(orgCampaignTemplateId)) {
+                throw new BadRequestException(
+                    `Template ID not found. Please configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
+                );
+            }
+
             const steps = [
                 {
                     key: "trafficSource",
@@ -95,34 +125,28 @@ export class AppsV2Service {
                 {
                     key: "copyCLOCampaign",
                     fn: async () => {
-                        const templateId =
-                            campaign_id ||
-                            (isIos
-                                ? this.configService.get<number>(
-                                      "keitaro.iosCloCampaignTemplateId",
-                                  )
-                                : this.configService.get<number>(
-                                      "keitaro.androidCloCampaignTemplateId",
-                                  ));
+                        const res = await this.keitaroClient.copyCampaign(
+                            cloCampaignTemplateId,
+                        );
 
-                        if (!templateId || isNaN(templateId)) {
+                        const campaign = Array.isArray(res) ? res[0] : res;
+
+                        if (!campaign || !campaign.id) {
                             throw new BadRequestException(
-                                `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}CloCampaignTemplateId`,
+                                `Failed to copy campaign: invalid response from API`,
                             );
                         }
 
-                        const res =
-                            await this.keitaroClient.copyCampaign(templateId);
                         result.cloCampaign = {
-                            campaignId: res[0].id,
-                            campaignToken: `${res[0].token}`,
-                            campaignAlias: `${res[0].alias}`,
+                            campaignId: campaign.id,
+                            campaignToken: `${campaign.token}`,
+                            campaignAlias: `${campaign.alias}`,
                             clTrueId: null,
                             clFalseId: null,
                         };
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${campaign_id || (isIos ? this.configService.get("keitaro.iosCloCampaignTemplateId") : this.configService.get("keitaro.androidCloCampaignTemplateId"))}/clone`,
+                    path: `admin_api/v1/campaigns/${cloCampaignTemplateId}/clone`,
                 },
                 {
                     key: "getCLOCampaignFalseStreamId",
@@ -161,32 +185,28 @@ export class AppsV2Service {
                 {
                     key: "copyORGCampaign",
                     fn: async () => {
-                        const templateId = isIos
-                            ? this.configService.get<number>(
-                                  "keitaro.iosOrgCampaignTemplateId",
-                              )
-                            : this.configService.get<number>(
-                                  "keitaro.androidOrgCampaignTemplateId",
-                              );
+                        const res = await this.keitaroClient.copyCampaign(
+                            orgCampaignTemplateId,
+                        );
 
-                        if (!templateId || isNaN(templateId)) {
+                        const campaign = Array.isArray(res) ? res[0] : res;
+
+                        if (!campaign || !campaign.id) {
                             throw new BadRequestException(
-                                `Template ID not found. Please configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
+                                `Failed to copy campaign: invalid response from API`,
                             );
                         }
 
-                        const res =
-                            await this.keitaroClient.copyCampaign(templateId);
                         result.orgCampaign = {
-                            campaignId: res[0].id,
-                            campaignToken: res[0].token,
-                            campaignAlias: res[0].alias,
+                            campaignId: campaign.id,
+                            campaignToken: campaign.token,
+                            campaignAlias: campaign.alias,
                             orgFalseId: null,
                         };
 
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${isIos ? this.configService.get("keitaro.iosOrgCampaignTemplateId") : this.configService.get("keitaro.androidOrgCampaignTemplateId")}/clone`,
+                    path: `admin_api/v1/campaigns/${orgCampaignTemplateId}/clone`,
                 },
                 {
                     key: "updateORGCampaign",
@@ -335,10 +355,19 @@ export class AppsV2Service {
                     fn: async () => {
                         const res =
                             await this.keitaroClient.copyCampaign(templateId);
+
+                        const campaign = Array.isArray(res) ? res[0] : res;
+
+                        if (!campaign || !campaign.id) {
+                            throw new BadRequestException(
+                                `Failed to copy campaign: invalid response from API`,
+                            );
+                        }
+
                         result.cloCampaign = {
-                            campaignId: res[0].id,
-                            campaignToken: `${res[0].token}`,
-                            campaignAlias: `${res[0].alias}`,
+                            campaignId: campaign.id,
+                            campaignToken: `${campaign.token}`,
+                            campaignAlias: `${campaign.alias}`,
                             clTrueId: null,
                             clFalseId: null,
                         };

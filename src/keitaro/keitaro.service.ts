@@ -16,6 +16,14 @@ import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.inter
 
 @Injectable()
 export class KeitaroService {
+    private static readonly STREAM_NAMES = {
+        TEST_FLOW: "test flow",
+        FILTER_TEST_FLOW: "filter test flow",
+        DENY_ALL_TRAFFIC: "deny all traffic",
+        DENY_ORG_TRAFFIC: "deny org traffic",
+        DEFAULT: "default",
+    } as const;
+
     constructor(private readonly configService: ConfigService) {}
 
     async getOffers() {
@@ -395,7 +403,14 @@ export class KeitaroService {
     async createORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
             const falseFilters = this.buildFalseFilters(isIos);
-            const streamsData = orgStreamParams(isIos, falseFilters);
+            const queryCheckerOfferId = this.configService.get<number>(
+                "keitaro.queryCheckerOfferId",
+            );
+            const streamsData = orgStreamParams(
+                isIos,
+                falseFilters,
+                queryCheckerOfferId,
+            );
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -411,7 +426,10 @@ export class KeitaroService {
 
     async createNoORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
-            const streamsData = noOrgStreamParams(isIos);
+            const queryCheckerOfferId = this.configService.get<number>(
+                "keitaro.queryCheckerOfferId",
+            );
+            const streamsData = noOrgStreamParams(isIos, queryCheckerOfferId);
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -1041,8 +1059,10 @@ export class KeitaroService {
     async toggleTestFlow(campaignId: number, enable: boolean): Promise<any> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const testFlow = streams.find((stream: any) =>
-                stream.name?.toLowerCase().includes("test flow"),
+            const testFlow = streams.find(
+                (stream: any) =>
+                    stream.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.TEST_FLOW,
             );
 
             const isConfiguredCorrectly =
@@ -1350,8 +1370,10 @@ export class KeitaroService {
     ): Promise<any> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const denyOrgStream = streams.find((stream: any) =>
-                stream.name?.toLowerCase().includes("deny org traffic"),
+            const denyOrgStream = streams.find(
+                (stream: any) =>
+                    stream.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             );
 
             if (!denyOrgStream) {
@@ -1382,28 +1404,44 @@ export class KeitaroService {
             const createdStreams: any[] = [];
 
             const testFlow = streams.find(
-                (s) => s.name?.toLowerCase() === "test flow",
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.TEST_FLOW,
             );
             const denyAllTraffic = streams.find(
-                (s) => s.name?.toLowerCase() === "deny all traffic",
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
             );
             const denyOrgTraffic = streams.find(
-                (s) => s.name?.toLowerCase() === "deny org traffic",
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             );
             const defaultFlow = streams.find((s) => s.type === "default");
 
+            const defaultStreamData = {
+                campaign_id: campaignId,
+                type: "forced",
+                action_payload: "",
+                weight: 0,
+                collect_clicks: true,
+                offers: [],
+                landings: [],
+                triggers: [],
+            };
+
             if (!testFlow) {
+                const queryCheckerOfferId = this.configService.get<number>(
+                    "keitaro.queryCheckerOfferId",
+                );
                 const testFlowData = {
-                    campaign_id: campaignId,
-                    name: "test flow",
-                    type: "forced",
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.TEST_FLOW,
                     schema: "landings",
                     action_type: "http",
-                    action_payload: "",
                     position: 1,
                     state: "disabled",
-                    weight: 0,
-                    collect_clicks: true,
                     filter_or: false,
                     filters: [
                         {
@@ -1414,36 +1452,35 @@ export class KeitaroService {
                     ],
                     offers: [
                         {
-                            offer_id: 3412,
+                            offer_id: queryCheckerOfferId,
                             share: 100,
                             state: "active",
                         },
                     ],
-                    landings: [],
-                    triggers: [],
                 };
                 const created = await this.createStream(
                     campaignId,
                     testFlowData,
                 );
-                createdStreams.push({ name: "test flow", id: created.id });
+                createdStreams.push({
+                    name: KeitaroService.STREAM_NAMES.TEST_FLOW,
+                    id: created.id,
+                });
             }
 
             const testFlowFilter = streams.find(
-                (s) => s.name?.toLowerCase() === "filter test flow",
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
             );
             if (!testFlowFilter) {
                 const filterData = {
-                    campaign_id: campaignId,
-                    name: "filter test flow",
-                    type: "forced",
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     schema: "action",
                     action_type: "do_nothing",
-                    action_payload: "",
                     position: 1,
                     state: "disabled",
-                    weight: 0,
-                    collect_clicks: true,
                     filter_or: false,
                     filters: [
                         {
@@ -1452,102 +1489,80 @@ export class KeitaroService {
                             payload: ["PL", "UA", "RO", "MD"],
                         },
                     ],
-                    offers: [],
-                    landings: [],
-                    triggers: [],
                 };
                 const created = await this.createStream(campaignId, filterData);
                 createdStreams.push({
-                    name: "filter test flow",
+                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     id: created.id,
                 });
             }
 
             if (!denyAllTraffic) {
                 const denyAllData = {
-                    campaign_id: campaignId,
-                    name: "deny all traffic",
-                    type: "forced",
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
                     schema: "action",
                     action_type: "do_nothing",
-                    action_payload: "",
                     position: 2,
                     state: "active",
-                    weight: 0,
-                    collect_clicks: true,
                     filters: [],
-                    offers: [],
-                    landings: [],
-                    triggers: [],
                 };
                 const created = await this.createStream(
                     campaignId,
                     denyAllData,
                 );
                 createdStreams.push({
-                    name: "deny all traffic",
+                    name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
                     id: created.id,
                 });
             }
 
             if (!denyOrgTraffic) {
                 const denyOrgData = {
-                    campaign_id: campaignId,
-                    name: "deny org traffic",
-                    type: "forced",
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
                     schema: "action",
                     action_type: "do_nothing",
-                    action_payload: "",
                     position: 3,
                     state: "disabled",
-                    weight: 0,
-                    collect_clicks: true,
                     filter_or: false,
                     filters: [
                         { name: "sub_id_17", mode: "reject", payload: null },
                     ],
-                    offers: [],
-                    landings: [],
-                    triggers: [],
                 };
                 const created = await this.createStream(
                     campaignId,
                     denyOrgData,
                 );
                 createdStreams.push({
-                    name: "deny org traffic",
+                    name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
                     id: created.id,
                 });
             }
 
             if (!defaultFlow) {
-                const defaultData = {
-                    campaign_id: campaignId,
-                    name: "default",
-                    type: "default",
-                    schema: "action",
-                    action_type: "campaign",
-                    action_payload: campaignId,
-                    position: 999,
-                    state: "active",
-                    weight: 0,
-                    collect_clicks: true,
-                    filters: [],
-                    offers: [],
-                    landings: [],
-                    triggers: [],
-                };
-                const created = await this.createStream(
-                    campaignId,
-                    defaultData,
-                );
-                createdStreams.push({ name: "default", id: created.id });
+                issues.push({
+                    type: "missing_default_flow",
+                    streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                    message:
+                        "Default flow відсутній. Default flow має перенаправляти на ORG кампанію, а не на APP кампанію. Використайте updateDefaultFlowWithOrgCampaign для налаштування.",
+                });
+            } else if (
+                defaultFlow.action_type === "campaign" &&
+                defaultFlow.action_payload === campaignId.toString()
+            ) {
+                issues.push({
+                    type: "self_redirect",
+                    streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                    message:
+                        "Default flow налаштований на self-redirect (перенаправляє на саму кампанію). Має перенаправляти на ORG кампанію.",
+                });
             }
 
             const filterFlows = streams.filter(
                 (s) =>
                     s.name?.toLowerCase().startsWith("filter") &&
-                    s.type === "filter",
+                    s.type === "forced",
             );
             for (const filterFlow of filterFlows) {
                 if (!filterFlow.filters || filterFlow.filters.length === 0) {
@@ -1591,11 +1606,11 @@ export class KeitaroService {
             }
 
             const allowedNames = [
-                "test flow",
-                "filter test flow",
-                "deny all traffic",
-                "deny org traffic",
-                "default",
+                KeitaroService.STREAM_NAMES.TEST_FLOW,
+                KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+                KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+                KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+                KeitaroService.STREAM_NAMES.DEFAULT,
             ];
             const extraStreams = streams.filter(
                 (s) =>

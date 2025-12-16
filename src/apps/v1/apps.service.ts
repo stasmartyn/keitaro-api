@@ -602,6 +602,15 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+
+        const campaign = Array.isArray(copyResult) ? copyResult[0] : copyResult;
+
+        if (!campaign || !campaign.id) {
+            throw new BadRequestException(
+                `Failed to copy campaign: invalid response from API`,
+            );
+        }
+
         const data: any = {
             name,
             alias,
@@ -609,7 +618,7 @@ export class AppsService {
         };
         if (change_parameters) {
             data.parameters = {
-                ...copyResult[0].parameters,
+                ...campaign.parameters,
                 sub_id_15: {
                     name: "user_id",
                     placeholder: sub_id,
@@ -618,7 +627,7 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(copyResult[0].id, data);
+        return await this.keitaroClient.updateCampaign(campaign.id, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {
@@ -852,10 +861,7 @@ export class AppsService {
             throw new BadRequestException("Missing required field: campaignId");
         }
 
-        return await this.keitaroClient.allowAllTraffic(
-            campaignId,
-            allow ?? true,
-        );
+        return await this.keitaroClient.allowAllTraffic(campaignId, allow);
     }
 
     private async closeGeoInternal(body: CloseGeoDto) {
@@ -889,7 +895,7 @@ export class AppsService {
     private async toggleTestFlowInternal(body: ToggleTestFlowDto) {
         const { campaignId, enable } = body;
 
-        if (campaignId === undefined || enable === undefined) {
+        if (!campaignId || enable === undefined || enable === null) {
             throw new BadRequestException(
                 "Missing required fields: campaignId, enable",
             );
@@ -911,7 +917,7 @@ export class AppsService {
     private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
         const { campaignId, enable } = body;
 
-        if (campaignId === undefined || enable === undefined) {
+        if (!campaignId || enable === undefined || enable === null) {
             throw new BadRequestException(
                 "Missing required fields: campaignId, enable",
             );
