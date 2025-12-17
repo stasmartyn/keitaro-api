@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios from "axios";
 import { Logger } from "../utils/logger";
@@ -925,7 +925,9 @@ export class KeitaroService {
             );
 
             if (!denyAllStream) {
-                throw new Error("Deny all traffic stream not found");
+                throw new BadRequestException(
+                    "Deny all traffic stream not found",
+                );
             }
 
             const url = this.buildUrl(
@@ -1024,11 +1026,18 @@ export class KeitaroService {
         targetCampaignId: number,
     ): Promise<any> {
         try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const maxPosition = streams.reduce(
+                (max, stream) => Math.max(max, stream.position || 0),
+                0,
+            );
+            const nextPosition = maxPosition + 1;
+
             const streamData = {
                 campaign_id: campaignId,
                 name: `Naming Share: ${naming}`,
                 type: "regular",
-                position: 1,
+                position: nextPosition,
                 state: "active",
                 weight: 100,
                 action_type: "campaign",
@@ -1072,7 +1081,7 @@ export class KeitaroService {
                 testFlow.offers.length > 0;
 
             if (!isConfiguredCorrectly) {
-                throw new Error(
+                throw new BadRequestException(
                     "Test flow stream does not exist or is incorrectly configured",
                 );
             }
@@ -1377,7 +1386,9 @@ export class KeitaroService {
             );
 
             if (!denyOrgStream) {
-                throw new Error("Deny org traffic stream not found");
+                throw new BadRequestException(
+                    "Deny org traffic stream not found",
+                );
             }
 
             const response = await axios.put(

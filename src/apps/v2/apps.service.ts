@@ -77,15 +77,15 @@ export class AppsV2Service {
                 },
             };
 
-            const cloCampaignTemplateId =
-                campaign_id ||
-                (isIos
-                    ? this.configService.get<number>(
-                          "keitaro.iosCloCampaignTemplateId",
-                      )
-                    : this.configService.get<number>(
-                          "keitaro.androidCloCampaignTemplateId",
-                      ));
+            const cloCampaignTemplateId = campaign_id
+                ? Number(campaign_id)
+                : isIos
+                  ? this.configService.get<number>(
+                        "keitaro.iosCloCampaignTemplateId",
+                    )
+                  : this.configService.get<number>(
+                        "keitaro.androidCloCampaignTemplateId",
+                    );
 
             if (!cloCampaignTemplateId || isNaN(cloCampaignTemplateId)) {
                 throw new BadRequestException(
@@ -93,17 +93,19 @@ export class AppsV2Service {
                 );
             }
 
-            const orgCampaignTemplateId = isIos
-                ? this.configService.get<number>(
-                      "keitaro.iosOrgCampaignTemplateId",
-                  )
-                : this.configService.get<number>(
-                      "keitaro.androidOrgCampaignTemplateId",
-                  );
+            const orgCampaignTemplateId = campaign_id
+                ? Number(campaign_id)
+                : isIos
+                  ? this.configService.get<number>(
+                        "keitaro.iosOrgCampaignTemplateId",
+                    )
+                  : this.configService.get<number>(
+                        "keitaro.androidOrgCampaignTemplateId",
+                    );
 
             if (!orgCampaignTemplateId || isNaN(orgCampaignTemplateId)) {
                 throw new BadRequestException(
-                    `Template ID not found. Please configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
+                    `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
                 );
             }
 
@@ -133,7 +135,7 @@ export class AppsV2Service {
 
                         if (!campaign || !campaign.id) {
                             throw new BadRequestException(
-                                `Failed to copy campaign: invalid response from API`,
+                                `Failed to copy campaign: invalid response from API. Response: ${JSON.stringify(res)}`,
                             );
                         }
 

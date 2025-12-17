@@ -855,7 +855,8 @@ export class AppsService {
     }
 
     private async allowAllTrafficInternal(body: AllowTrafficDto) {
-        const { campaignId, allow } = body;
+        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const allow = body.allow;
 
         if (!campaignId) {
             throw new BadRequestException("Missing required field: campaignId");
@@ -893,7 +894,8 @@ export class AppsService {
     }
 
     private async toggleTestFlowInternal(body: ToggleTestFlowDto) {
-        const { campaignId, enable } = body;
+        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const enable = body.enable;
 
         if (!campaignId || enable === undefined || enable === null) {
             throw new BadRequestException(
@@ -905,7 +907,7 @@ export class AppsService {
     }
 
     private async validateIntegrationInternal(body: ValidateIntegrationDto) {
-        const { campaignId } = body;
+        const campaignId = body.campaignId ?? (body as any).campaign_id;
 
         if (campaignId === undefined) {
             throw new BadRequestException("Missing required field: campaignId");
@@ -915,7 +917,8 @@ export class AppsService {
     }
 
     private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
-        const { campaignId, enable } = body;
+        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const enable = body.enable;
 
         if (!campaignId || enable === undefined || enable === null) {
             throw new BadRequestException(
