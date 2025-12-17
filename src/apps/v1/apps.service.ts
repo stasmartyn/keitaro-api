@@ -507,7 +507,7 @@ export class AppsService {
             updatePostBackData.postbacks.push({
                 campaign_id: noOrgCampaignResponse.id,
                 method: "GET",
-                url: "https://dev.linkfactory.site/w2a-events?subid={sub_id_18}&event={status}&payout={revenue}&tr=new",
+                url: "https://stage.linkfactory.site/w2a-events?subid={sub_id_18}&event={status}&payout={revenue}&tr=new",
                 statuses: ["sale", "lead"],
             });
         }
