@@ -497,7 +497,7 @@ export class AppsService {
                 {
                     campaign_id: noOrgCampaignResponse.id,
                     method: "GET",
-                    url: "https://europe-west3-my-wallet-333322.cloudfunctions.net/handleTGmessage?status=dep&offer={offer_name}&user_id={user_id}&subid={subid}&country={country}&campaign={campaign_name}&revenue={conversion_revenue}&conversion={_conversion_time:Y-m-d%20H:i:s,Europe/Kyiv}&sub1={sub_id_1}&sub2={sub_id_2}&sub3={sub_id_3}&sub4={sub_id_4}&sub5={sub_id_5}&sub6={sub_id_6}&naming={sub_id_17}}",
+                    url: "https://europe-west3-my-wallet-333322.cloudfunctions.net/handleTGmessage?status=dep&offer={offer_name}&user_id={user_id}&subid={subid}&country={country}&campaign={campaign_name}&revenue={conversion_revenue}&conversion={_conversion_time:Y-m-d%20H:i:s,Europe/Kyiv}&sub1={sub_id_1}&sub2={sub_id_2}&sub3={sub_id_3}&sub4={sub_id_4}&sub5={sub_id_5}&sub6={sub_id_6}&naming={sub_id_17}&os={os}&click_time={_date:Y-m-d%20H:i:s,Europe/Kyiv}",
                     statuses: ["sale"],
                 },
             ],
