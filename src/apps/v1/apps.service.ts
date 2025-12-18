@@ -504,20 +504,12 @@ export class AppsService {
         };
 
         if (isIos) {
-            updatePostBackData.postbacks.push(
-                {
-                    campaign_id: noOrgCampaignResponse.id,
-                    method: "GET",
-                    url: "https://onelink.tbapptech.net/v2/fbs2s?subid={sub_id_18}&event=CompleteRegistration&payout=0&tr=new",
-                    statuses: ["lead"],
-                },
-                {
-                    campaign_id: noOrgCampaignResponse.id,
-                    method: "GET",
-                    url: "https://onelink.tbapptech.net/v2/fbs2s?subid={sub_id_18}&event=Purchase&payout={revenue}&tr=new",
-                    statuses: ["sale"],
-                },
-            );
+            updatePostBackData.postbacks.push({
+                campaign_id: noOrgCampaignResponse.id,
+                method: "GET",
+                url: "https://stage.linkfactory.site/w2a-events?subid={sub_id_18}&event={status}&payout={revenue}&tr=new",
+                statuses: ["sale", "lead"],
+            });
         }
 
         await this.keitaroClient.updateNoOrgCampaignPostback(
