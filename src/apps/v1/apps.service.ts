@@ -603,14 +603,6 @@ export class AppsService {
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
 
-        const campaign = Array.isArray(copyResult) ? copyResult[0] : copyResult;
-
-        if (!campaign || !campaign.id) {
-            throw new BadRequestException(
-                `Failed to copy campaign: invalid response from API`,
-            );
-        }
-
         const data: any = {
             name,
             alias,
@@ -618,7 +610,7 @@ export class AppsService {
         };
         if (change_parameters) {
             data.parameters = {
-                ...campaign.parameters,
+                ...copyResult[0].parameters,
                 sub_id_15: {
                     name: "user_id",
                     placeholder: sub_id,
@@ -627,7 +619,7 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(campaign.id, data);
+        return await this.keitaroClient.updateCampaign(copyResult[0].id, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {

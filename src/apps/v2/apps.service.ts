@@ -56,6 +56,12 @@ export class AppsV2Service {
                 campaign_id,
             } = body;
 
+            const campaignId =
+                campaign_id || isIos
+                    ? this.configService.get("keitaro.iosCloCampaignTemplateId")
+                    : this.configService.get(
+                          "keitaro.androidCloCampaignTemplateId",
+                      );
             if (!name || !bundle_id) {
                 throw new BadRequestException("Missing required fields.");
             }
@@ -77,38 +83,6 @@ export class AppsV2Service {
                 },
             };
 
-            const cloCampaignTemplateId = campaign_id
-                ? Number(campaign_id)
-                : isIos
-                  ? this.configService.get<number>(
-                        "keitaro.iosCloCampaignTemplateId",
-                    )
-                  : this.configService.get<number>(
-                        "keitaro.androidCloCampaignTemplateId",
-                    );
-
-            if (!cloCampaignTemplateId || isNaN(cloCampaignTemplateId)) {
-                throw new BadRequestException(
-                    `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}CloCampaignTemplateId`,
-                );
-            }
-
-            const orgCampaignTemplateId = campaign_id
-                ? Number(campaign_id)
-                : isIos
-                  ? this.configService.get<number>(
-                        "keitaro.iosOrgCampaignTemplateId",
-                    )
-                  : this.configService.get<number>(
-                        "keitaro.androidOrgCampaignTemplateId",
-                    );
-
-            if (!orgCampaignTemplateId || isNaN(orgCampaignTemplateId)) {
-                throw new BadRequestException(
-                    `Template ID not found. Please provide campaign_id or configure keitaro.${isIos ? "ios" : "android"}OrgCampaignTemplateId`,
-                );
-            }
-
             const steps = [
                 {
                     key: "trafficSource",
@@ -127,28 +101,26 @@ export class AppsV2Service {
                 {
                     key: "copyCLOCampaign",
                     fn: async () => {
-                        const res = await this.keitaroClient.copyCampaign(
-                            cloCampaignTemplateId,
-                        );
+                        const templateId = isIos
+                            ? this.configService.get(
+                                  "keitaro.iosCloCampaignTemplateId",
+                              )
+                            : this.configService.get(
+                                  "keitaro.androidCloCampaignTemplateId",
+                              );
 
-                        const campaign = Array.isArray(res) ? res[0] : res;
-
-                        if (!campaign || !campaign.id) {
-                            throw new BadRequestException(
-                                `Failed to copy campaign: invalid response from API. Response: ${JSON.stringify(res)}`,
-                            );
-                        }
-
+                        const res =
+                            await this.keitaroClient.copyCampaign(templateId);
                         result.cloCampaign = {
-                            campaignId: campaign.id,
-                            campaignToken: `${campaign.token}`,
-                            campaignAlias: `${campaign.alias}`,
+                            campaignId: res[0].id,
+                            campaignToken: `${res[0].token}`,
+                            campaignAlias: `${res[0].alias}`,
                             clTrueId: null,
                             clFalseId: null,
                         };
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${cloCampaignTemplateId}/clone`,
+                    path: `admin_api/v1/campaigns/${campaignId}/clone`,
                 },
                 {
                     key: "getCLOCampaignFalseStreamId",
@@ -187,28 +159,26 @@ export class AppsV2Service {
                 {
                     key: "copyORGCampaign",
                     fn: async () => {
-                        const res = await this.keitaroClient.copyCampaign(
-                            orgCampaignTemplateId,
-                        );
+                        const templateId = isIos
+                            ? this.configService.get(
+                                  "keitaro.iosOrgCampaignTemplateId",
+                              )
+                            : this.configService.get(
+                                  "keitaro.androidOrgCampaignTemplateId",
+                              );
 
-                        const campaign = Array.isArray(res) ? res[0] : res;
-
-                        if (!campaign || !campaign.id) {
-                            throw new BadRequestException(
-                                `Failed to copy campaign: invalid response from API`,
-                            );
-                        }
-
+                        const res =
+                            await this.keitaroClient.copyCampaign(templateId);
                         result.orgCampaign = {
-                            campaignId: campaign.id,
-                            campaignToken: campaign.token,
-                            campaignAlias: campaign.alias,
+                            campaignId: res[0].id,
+                            campaignToken: res[0].token,
+                            campaignAlias: res[0].alias,
                             orgFalseId: null,
                         };
 
                         return res;
                     },
-                    path: `admin_api/v1/campaigns/${orgCampaignTemplateId}/clone`,
+                    path: `admin_api/v1/campaigns/${isIos ? this.configService.get("keitaro.iosOrgCampaignTemplateId") : this.configService.get("keitaro.androidOrgCampaignTemplateId")}/clone`,
                 },
                 {
                     key: "updateORGCampaign",
@@ -242,18 +212,6 @@ export class AppsV2Service {
                         return res;
                     },
                     path: `admin_api/v1/campaigns/${result.orgCampaign.campaignId}/streams`,
-                },
-                {
-                    key: "updateDefaultFlowWithOrgCampaign",
-                    fn: async () => {
-                        const res =
-                            await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
-                                result.cloCampaign.campaignId,
-                                result.orgCampaign.campaignId,
-                            );
-                        return res;
-                    },
-                    path: `admin_api/v1/streams`,
                 },
             ];
 
@@ -327,15 +285,9 @@ export class AppsV2Service {
                 },
             };
 
-            const templateId = this.configService.get<number>(
+            const templateId = this.configService.get(
                 "keitaro.newFlowCloCampaignTemplateId",
             );
-
-            if (!templateId || isNaN(templateId)) {
-                throw new BadRequestException(
-                    "Template ID not found. Please configure keitaro.newFlowCloCampaignTemplateId",
-                );
-            }
 
             const steps = [
                 {
@@ -358,18 +310,10 @@ export class AppsV2Service {
                         const res =
                             await this.keitaroClient.copyCampaign(templateId);
 
-                        const campaign = Array.isArray(res) ? res[0] : res;
-
-                        if (!campaign || !campaign.id) {
-                            throw new BadRequestException(
-                                `Failed to copy campaign: invalid response from API`,
-                            );
-                        }
-
                         result.cloCampaign = {
-                            campaignId: campaign.id,
-                            campaignToken: `${campaign.token}`,
-                            campaignAlias: `${campaign.alias}`,
+                            campaignId: res[0].id,
+                            campaignToken: `${res[0].token}`,
+                            campaignAlias: `${res[0].alias}`,
                             clTrueId: null,
                             clFalseId: null,
                         };
