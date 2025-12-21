@@ -599,6 +599,13 @@ export class AppsService {
         if (!id || !group_id || !name) {
             throw new BadRequestException("Missing required fields.");
         }
+
+        if (typeof id !== "number" || isNaN(id) || id <= 0) {
+            throw new BadRequestException(
+                `Invalid campaign template ID: ${id}. Must be a positive number.`,
+            );
+        }
+
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);

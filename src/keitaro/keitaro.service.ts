@@ -1032,7 +1032,7 @@ export class KeitaroService {
                 weight: 100,
                 action_type: "campaign",
                 action_payload: targetCampaignId.toString(),
-                schema: "landings",
+                schema: "action",
                 filters: [
                     {
                         name: "sub_id_17",
