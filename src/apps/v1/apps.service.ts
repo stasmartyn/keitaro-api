@@ -602,7 +602,6 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
-
         const data: any = {
             name,
             alias,

@@ -309,7 +309,6 @@ export class AppsV2Service {
                     fn: async () => {
                         const res =
                             await this.keitaroClient.copyCampaign(templateId);
-
                         result.cloCampaign = {
                             campaignId: res[0].id,
                             campaignToken: `${res[0].token}`,

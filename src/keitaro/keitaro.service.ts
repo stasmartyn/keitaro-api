@@ -403,14 +403,7 @@ export class KeitaroService {
     async createORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
             const falseFilters = this.buildFalseFilters(isIos);
-            const queryCheckerOfferId = this.configService.get<number>(
-                "keitaro.queryCheckerOfferId",
-            );
-            const streamsData = orgStreamParams(
-                isIos,
-                falseFilters,
-                queryCheckerOfferId,
-            );
+            const streamsData = orgStreamParams(isIos, falseFilters);
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -426,10 +419,7 @@ export class KeitaroService {
 
     async createNoORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
-            const queryCheckerOfferId = this.configService.get<number>(
-                "keitaro.queryCheckerOfferId",
-            );
-            const streamsData = noOrgStreamParams(isIos, queryCheckerOfferId);
+            const streamsData = noOrgStreamParams(isIos);
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -1443,9 +1433,6 @@ export class KeitaroService {
             };
 
             if (!testFlow) {
-                const queryCheckerOfferId = this.configService.get<number>(
-                    "keitaro.queryCheckerOfferId",
-                );
                 const testFlowData = {
                     ...defaultStreamData,
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
@@ -1463,7 +1450,7 @@ export class KeitaroService {
                     ],
                     offers: [
                         {
-                            offer_id: queryCheckerOfferId,
+                            queryCheckerOfferId: 3412,
                             share: 100,
                             state: "active",
                         },
@@ -1644,40 +1631,6 @@ export class KeitaroService {
             };
         } catch (error) {
             this.handleKeitaroError(this.validateIntegration.name, error);
-        }
-    }
-
-    async updateDefaultFlowWithOrgCampaign(
-        campaignId: number,
-        orgCampaignId: number,
-    ): Promise<any> {
-        try {
-            const streams = await this.getCampaignStreams(campaignId);
-            const defaultFlow = streams.find(
-                (stream: any) => stream.type === "default",
-            );
-
-            if (!defaultFlow) {
-                throw new Error("Default flow not found");
-            }
-
-            const response = await axios.put(
-                this.buildUrl(`admin_api/v1/streams/${defaultFlow.id}`),
-                {
-                    action_type: "campaign",
-                    action_payload: orgCampaignId.toString(),
-                },
-                {
-                    headers: this.generateHeaders(),
-                },
-            );
-
-            return response.data;
-        } catch (error) {
-            this.handleKeitaroError(
-                this.updateDefaultFlowWithOrgCampaign.name,
-                error,
-            );
         }
     }
 
