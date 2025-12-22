@@ -28,6 +28,7 @@ import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { UpdateStreamDto } from "../dto/update-stream.dto";
 
 @Injectable()
 export class AppsService {
@@ -172,6 +173,34 @@ export class AppsService {
         );
 
         return getFullCampaignInfoWithErrorHandler(id);
+    }
+
+    async getCampaignStreams(id: string) {
+        const getCampaignStreamsWithErrorHandler = wrapWithErrorHandler(
+            this.getCampaignStreamsInternal.bind(this),
+            {
+                functionName: "AppsService.getCampaignStreams",
+                additionalData: {
+                    endpoint: "GET /v1/apps/campaign/:id/streams",
+                },
+            },
+        );
+
+        return getCampaignStreamsWithErrorHandler(id);
+    }
+
+    async getStreamById(id: string) {
+        const getStreamByIdWithErrorHandler = wrapWithErrorHandler(
+            this.getStreamByIdInternal.bind(this),
+            {
+                functionName: "AppsService.getStreamById",
+                additionalData: {
+                    endpoint: "GET /v1/apps/streams/:id",
+                },
+            },
+        );
+
+        return getStreamByIdWithErrorHandler(id);
     }
 
     async updateCampaign(id: string, body: UpdateCampaignDto) {
@@ -328,6 +357,47 @@ export class AppsService {
         }
 
         return await this.campaignDataService.getFullCampaignInfo(campaignId);
+    }
+
+    private async getCampaignStreamsInternal(id: string) {
+        const campaignId = parseInt(id, 10);
+        if (isNaN(campaignId)) {
+            throw new BadRequestException("Invalid campaign ID");
+        }
+
+        return await this.keitaroClient.getCampaignStreams(campaignId);
+    }
+
+    private async getStreamByIdInternal(id: string) {
+        const streamId = parseInt(id, 10);
+        if (isNaN(streamId)) {
+            throw new BadRequestException("Invalid stream ID");
+        }
+        const stream = await this.keitaroClient.getStreamById(streamId);
+        return stream;
+    }
+
+    async updateStream(id: string, body: UpdateStreamDto) {
+        const updateStreamWithErrorHandler = wrapWithErrorHandler(
+            this.updateStreamInternal.bind(this),
+            {
+                functionName: "AppsService.updateStream",
+                additionalData: {
+                    endpoint: "PUT /v1/apps/streams/:id",
+                },
+            },
+        );
+
+        return updateStreamWithErrorHandler(id, body);
+    }
+
+    private async updateStreamInternal(id: string, body: UpdateStreamDto) {
+        const streamId = parseInt(id, 10);
+        if (isNaN(streamId)) {
+            throw new BadRequestException("Invalid stream ID");
+        }
+
+        return await this.keitaroClient.updateStream(streamId, body);
     }
 
     private async updateCampaignInternal(id: string, body: UpdateCampaignDto) {

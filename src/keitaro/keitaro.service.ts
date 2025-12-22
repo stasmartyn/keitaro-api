@@ -807,10 +807,7 @@ export class KeitaroService {
         return updates;
     }
 
-    private async updateStream(
-        streamId: number,
-        updateData: any,
-    ): Promise<any> {
+    async updateStream(streamId: number, updateData: any): Promise<any> {
         try {
             const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
             const response = await axios.put(url, updateData, {
@@ -925,7 +922,7 @@ export class KeitaroService {
             );
             const response = await axios.put(
                 url,
-                { state: shouldAllow ? "disabled" : "active" },
+                { state: shouldAllow ? "active" : "disabled" },
                 {
                     headers: this.generateHeaders(),
                 },
@@ -1106,6 +1103,20 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.getCampaignStreams.name, error);
+        }
+    }
+
+    async getStreamById(streamId: number) {
+        const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
+
+        try {
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getStreamById.name, error);
         }
     }
 
@@ -1421,6 +1432,14 @@ export class KeitaroService {
             );
             const defaultFlow = streams.find((s) => s.type === "default");
 
+            const getNextPosition = () => {
+                const maxPosition = streams.reduce(
+                    (max, stream) => Math.max(max, stream.position || 0),
+                    0,
+                );
+                return maxPosition + 1;
+            };
+
             const defaultStreamData = {
                 campaign_id: campaignId,
                 type: "forced",
@@ -1438,7 +1457,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
                     schema: "landings",
                     action_type: "http",
-                    position: 1,
+                    position: getNextPosition(),
                     state: "disabled",
                     filter_or: false,
                     filters: [
@@ -1464,6 +1483,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
                     id: created.id,
                 });
+                streams.push(created);
             }
 
             const testFlowFilter = streams.find(
@@ -1477,7 +1497,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     schema: "action",
                     action_type: "do_nothing",
-                    position: 1,
+                    position: getNextPosition(),
                     state: "disabled",
                     filter_or: false,
                     filters: [
@@ -1493,6 +1513,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     id: created.id,
                 });
+                streams.push(created);
             }
 
             if (!denyAllTraffic) {
@@ -1501,7 +1522,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
                     schema: "action",
                     action_type: "do_nothing",
-                    position: 2,
+                    position: getNextPosition(),
                     state: "active",
                     filters: [],
                 };
@@ -1513,6 +1534,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
                     id: created.id,
                 });
+                streams.push(created);
             }
 
             if (!denyOrgTraffic) {
@@ -1521,7 +1543,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
                     schema: "action",
                     action_type: "do_nothing",
-                    position: 3,
+                    position: getNextPosition(),
                     state: "disabled",
                     filter_or: false,
                     filters: [
@@ -1536,6 +1558,7 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
                     id: created.id,
                 });
+                streams.push(created);
             }
 
             if (!defaultFlow) {
