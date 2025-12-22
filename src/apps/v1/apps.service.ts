@@ -301,7 +301,7 @@ export class AppsService {
             };
 
             const createCampaignResponse: ICampaign =
-                await this.keitaroClient.createCampaign(campaignData);
+                await this.keitaroClient.createCampaign(campaignData, true);
 
             const streamData: IStreamCreate = {
                 type: "regular",

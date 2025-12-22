@@ -364,10 +364,13 @@ export class KeitaroService {
         }
     }
 
-    async createCampaign(data: CreateCampaignInterface) {
+    async createCampaign(
+        data: CreateCampaignInterface,
+        isOnelink: boolean = false,
+    ) {
         try {
             const url = this.buildUrl("admin_api/v1/campaigns");
-            const campaignPayload = campaignParams(data);
+            const campaignPayload = campaignParams(data, isOnelink);
 
             const response = await axios.post(url, campaignPayload, {
                 headers: this.generateHeaders(),

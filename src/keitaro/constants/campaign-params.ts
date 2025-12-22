@@ -1,6 +1,9 @@
 import { CreateCampaignInterface } from "../interfaces/create-campaign.interface";
 
-export const campaignParams = (data: CreateCampaignInterface) => {
+export const campaignParams = (
+    data: CreateCampaignInterface,
+    isOnelink: boolean = false,
+) => {
     const { name, alias, group_id, traffic_source_id, sub_id } = data;
     const baseParams = {
         keyword: { name: "keyword", placeholder: "", alias: "" },
@@ -146,6 +149,19 @@ export const campaignParams = (data: CreateCampaignInterface) => {
                     alias: "",
                 };
             }
+        }
+
+        if (isOnelink) {
+            params["sub_id_23"] = {
+                name: "ttclid",
+                placeholder: "",
+                alias: "ttclid",
+            };
+            params["sub_id_24"] = {
+                name: "tt_pixel",
+                placeholder: "",
+                alias: "tt_pixel",
+            };
         }
         return params;
     };
