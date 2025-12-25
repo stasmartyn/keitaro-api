@@ -179,6 +179,7 @@ export const streamParams = (
 export const orgStreamParams = (
     isIos: boolean,
     falseFilters: string[] = [],
+    testFlowOfferId: number = 3412,
 ) => {
     const streams = [
         {
@@ -220,7 +221,7 @@ export const orgStreamParams = (
             landings: [],
             offers: [
                 {
-                    offer_id: 3412,
+                    offer_id: testFlowOfferId,
                     share: 100,
                     state: "active",
                 },
@@ -252,7 +253,10 @@ export const orgStreamParams = (
     }));
 };
 
-export const noOrgStreamParams = (isIos: boolean) => {
+export const noOrgStreamParams = (
+    isIos: boolean,
+    testFlowOfferId: number = 3412,
+) => {
     const streams = [
         {
             type: "regular",
@@ -277,7 +281,7 @@ export const noOrgStreamParams = (isIos: boolean) => {
             landings: [],
             offers: [
                 {
-                    offer_id: 3412,
+                    offer_id: testFlowOfferId,
                     share: 100,
                     state: "active",
                 },

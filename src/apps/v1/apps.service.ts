@@ -24,6 +24,11 @@ import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
+import { AllowTrafficDto } from "../dto/allow-traffic.dto";
+import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
+import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
+import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { UpdateStreamDto } from "../dto/update-stream.dto";
 
 @Injectable()
 export class AppsService {
@@ -170,6 +175,34 @@ export class AppsService {
         return getFullCampaignInfoWithErrorHandler(id);
     }
 
+    async getCampaignStreams(id: string) {
+        const getCampaignStreamsWithErrorHandler = wrapWithErrorHandler(
+            this.getCampaignStreamsInternal.bind(this),
+            {
+                functionName: "AppsService.getCampaignStreams",
+                additionalData: {
+                    endpoint: "GET /v1/apps/campaign/:id/streams",
+                },
+            },
+        );
+
+        return getCampaignStreamsWithErrorHandler(id);
+    }
+
+    async getStreamById(id: string) {
+        const getStreamByIdWithErrorHandler = wrapWithErrorHandler(
+            this.getStreamByIdInternal.bind(this),
+            {
+                functionName: "AppsService.getStreamById",
+                additionalData: {
+                    endpoint: "GET /v1/apps/streams/:id",
+                },
+            },
+        );
+
+        return getStreamByIdWithErrorHandler(id);
+    }
+
     async updateCampaign(id: string, body: UpdateCampaignDto) {
         const updateCampaignWithErrorHandler = wrapWithErrorHandler(
             this.updateCampaignInternal.bind(this),
@@ -240,6 +273,62 @@ export class AppsService {
         return shareNamingWithErrorHandler(body);
     }
 
+    async allowAllTraffic(body: AllowTrafficDto) {
+        const allowAllTrafficWithErrorHandler = wrapWithErrorHandler(
+            this.allowAllTrafficInternal.bind(this),
+            {
+                functionName: "AppsService.allowAllTraffic",
+                additionalData: {
+                    endpoint: "POST /v1/apps/allow-all-traffic",
+                },
+            },
+        );
+
+        return allowAllTrafficWithErrorHandler(body);
+    }
+
+    async toggleTestFlow(body: ToggleTestFlowDto) {
+        const toggleTestFlowWithErrorHandler = wrapWithErrorHandler(
+            this.toggleTestFlowInternal.bind(this),
+            {
+                functionName: "AppsService.toggleTestFlow",
+                additionalData: {
+                    endpoint: "POST /v1/apps/toggle-test-flow",
+                },
+            },
+        );
+
+        return toggleTestFlowWithErrorHandler(body);
+    }
+
+    async validateIntegration(body: ValidateIntegrationDto) {
+        const validateIntegrationWithErrorHandler = wrapWithErrorHandler(
+            this.validateIntegrationInternal.bind(this),
+            {
+                functionName: "AppsService.validateIntegration",
+                additionalData: {
+                    endpoint: "POST /v1/apps/validate-integration",
+                },
+            },
+        );
+
+        return validateIntegrationWithErrorHandler(body);
+    }
+
+    async toggleDenyOrgTraffic(body: ToggleDenyOrgTrafficDto) {
+        const toggleDenyOrgTrafficWithErrorHandler = wrapWithErrorHandler(
+            this.toggleDenyOrgTrafficInternal.bind(this),
+            {
+                functionName: "AppsService.toggleDenyOrgTraffic",
+                additionalData: {
+                    endpoint: "POST /v1/apps/toggle-deny-org-traffic",
+                },
+            },
+        );
+
+        return toggleDenyOrgTrafficWithErrorHandler(body);
+    }
+
     private async createRentCampaignInternal(body: CreateRentCampaignDto) {
         const { groupId, offerId, name } = body;
         if (!groupId || !offerId || !name) {
@@ -261,20 +350,54 @@ export class AppsService {
         return await this.keitaroClient.deleteTrafficSource(id);
     }
 
-    private async getFullCampaignInfoInternal(id: string) {
-        const campaignId = parseInt(id, 10);
-        if (isNaN(campaignId)) {
-            throw new BadRequestException("Invalid campaign ID");
+    private parseNumberId(id: string, paramName: string): number {
+        const parsedId = parseInt(id, 10);
+        if (isNaN(parsedId)) {
+            throw new BadRequestException(`Invalid ${paramName}`);
         }
+        return parsedId;
+    }
+
+    private async getFullCampaignInfoInternal(id: string) {
+        const campaignId = this.parseNumberId(id, "campaign ID");
 
         return await this.campaignDataService.getFullCampaignInfo(campaignId);
     }
 
+    private async getCampaignStreamsInternal(id: string) {
+        const campaignId = this.parseNumberId(id, "campaign ID");
+
+        return await this.keitaroClient.getCampaignStreams(campaignId);
+    }
+
+    private async getStreamByIdInternal(id: string) {
+        const streamId = this.parseNumberId(id, "stream ID");
+        const stream = await this.keitaroClient.getStreamById(streamId);
+        return stream;
+    }
+
+    async updateStream(id: string, body: UpdateStreamDto) {
+        const updateStreamWithErrorHandler = wrapWithErrorHandler(
+            this.updateStreamInternal.bind(this),
+            {
+                functionName: "AppsService.updateStream",
+                additionalData: {
+                    endpoint: "PUT /v1/apps/streams/:id",
+                },
+            },
+        );
+
+        return updateStreamWithErrorHandler(id, body);
+    }
+
+    private async updateStreamInternal(id: string, body: UpdateStreamDto) {
+        const streamId = this.parseNumberId(id, "stream ID");
+
+        return await this.keitaroClient.updateStream(streamId, body);
+    }
+
     private async updateCampaignInternal(id: string, body: UpdateCampaignDto) {
-        const campaignId = parseInt(id, 10);
-        if (isNaN(campaignId)) {
-            throw new BadRequestException("Invalid campaign ID");
-        }
+        const campaignId = this.parseNumberId(id, "campaign ID");
 
         return await this.keitaroClient.updateCampaign(campaignId, body);
     }
@@ -531,9 +654,34 @@ export class AppsService {
         if (!id || !group_id || !name) {
             throw new BadRequestException("Missing required fields.");
         }
+
+        if (typeof id !== "number" || isNaN(id) || id <= 0) {
+            throw new BadRequestException(
+                `Invalid campaign template ID: ${id}. Must be a positive number.`,
+            );
+        }
+
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+
+        if (
+            !copyResult ||
+            !Array.isArray(copyResult) ||
+            copyResult.length === 0
+        ) {
+            throw new BadRequestException(
+                `Failed to copy campaign. Invalid response from Keitaro API.`,
+            );
+        }
+
+        const copiedCampaign = copyResult[0];
+        if (!copiedCampaign || !copiedCampaign.id) {
+            throw new BadRequestException(
+                `Failed to copy campaign. Copied campaign data is invalid.`,
+            );
+        }
+
         const data: any = {
             name,
             alias,
@@ -541,7 +689,7 @@ export class AppsService {
         };
         if (change_parameters) {
             data.parameters = {
-                ...copyResult[0].parameters,
+                ...copiedCampaign.parameters,
                 sub_id_15: {
                     name: "user_id",
                     placeholder: sub_id,
@@ -550,7 +698,7 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(copyResult[0].id, data);
+        return await this.keitaroClient.updateCampaign(copiedCampaign.id, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {
@@ -777,6 +925,38 @@ export class AppsService {
         return await this.keitaroClient.closeCloak(campaignId);
     }
 
+    private extractCampaignId(body: any): number | undefined {
+        if (body.campaignId !== undefined) {
+            return body.campaignId;
+        }
+
+        if ((body as any).campaign_id !== undefined) {
+            Logger.warn(
+                "Deprecated: Using snake_case 'campaign_id' is deprecated. Please use camelCase 'campaignId' instead.",
+                {
+                    endpoint: "campaignId extraction",
+                    deprecatedField: "campaign_id",
+                    recommendedField: "campaignId",
+                },
+                "AppsService",
+            );
+            return (body as any).campaign_id;
+        }
+
+        return undefined;
+    }
+
+    private async allowAllTrafficInternal(body: AllowTrafficDto) {
+        const campaignId = this.extractCampaignId(body);
+        const allow = body.allow;
+
+        if (!campaignId) {
+            throw new BadRequestException("Missing required field: campaignId");
+        }
+
+        return await this.keitaroClient.allowAllTraffic(campaignId, allow);
+    }
+
     private async closeGeoInternal(body: CloseGeoDto) {
         const { campaignId, geoCode } = body;
 
@@ -802,6 +982,45 @@ export class AppsService {
             campaignId,
             naming,
             targetCampaignId,
+        );
+    }
+
+    private async toggleTestFlowInternal(body: ToggleTestFlowDto) {
+        const campaignId = this.extractCampaignId(body);
+        const enable = body.enable;
+
+        if (!campaignId || enable === undefined || enable === null) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, enable",
+            );
+        }
+
+        return await this.keitaroClient.toggleTestFlow(campaignId, enable);
+    }
+
+    private async validateIntegrationInternal(body: ValidateIntegrationDto) {
+        const campaignId = this.extractCampaignId(body);
+
+        if (campaignId === undefined) {
+            throw new BadRequestException("Missing required field: campaignId");
+        }
+
+        return await this.keitaroClient.validateIntegration(campaignId);
+    }
+
+    private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
+        const campaignId = this.extractCampaignId(body);
+        const enable = body.enable;
+
+        if (!campaignId || enable === undefined || enable === null) {
+            throw new BadRequestException(
+                "Missing required fields: campaignId, enable",
+            );
+        }
+
+        return await this.keitaroClient.toggleDenyOrgTraffic(
+            campaignId,
+            enable,
         );
     }
 

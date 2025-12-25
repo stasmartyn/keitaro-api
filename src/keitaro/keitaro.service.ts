@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios from "axios";
 import { Logger } from "../utils/logger";
@@ -24,6 +24,14 @@ import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.inter
 
 @Injectable()
 export class KeitaroService {
+    private static readonly STREAM_NAMES = {
+        TEST_FLOW: "test flow",
+        FILTER_TEST_FLOW: "filter test flow",
+        DENY_ALL_TRAFFIC: "deny all traffic",
+        DENY_ORG_TRAFFIC: "deny org traffic",
+        DEFAULT: "default",
+    } as const;
+
     constructor(private readonly configService: ConfigService) {}
 
     async getOffers() {
@@ -406,7 +414,14 @@ export class KeitaroService {
     async createORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
             const falseFilters = this.buildFalseFilters(isIos);
-            const streamsData = orgStreamParams(isIos, falseFilters);
+            const testFlowOfferId = this.configService.get(
+                "keitaro.testFlowOfferId",
+            );
+            const streamsData = orgStreamParams(
+                isIos,
+                falseFilters,
+                testFlowOfferId,
+            );
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -422,7 +437,10 @@ export class KeitaroService {
 
     async createNoORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
-            const streamsData = noOrgStreamParams(isIos);
+            const testFlowOfferId = this.configService.get(
+                "keitaro.testFlowOfferId",
+            );
+            const streamsData = noOrgStreamParams(isIos, testFlowOfferId);
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -810,10 +828,7 @@ export class KeitaroService {
         return updates;
     }
 
-    private async updateStream(
-        streamId: number,
-        updateData: any,
-    ): Promise<any> {
+    async updateStream(streamId: number, updateData: any): Promise<any> {
         try {
             const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
             const response = await axios.put(url, updateData, {
@@ -842,12 +857,51 @@ export class KeitaroService {
         try {
             const streams = await this.getCampaignStreams(campaignId);
 
-            const denyAllStream = streams.find((stream: any) =>
-                stream.name.toLowerCase().includes("deny all traffic"),
-            );
+            let denyAllStream = streams.find((stream: any) => {
+                const name = stream.name?.toLowerCase() || "";
+                return (
+                    name.includes("deny all traffic") ||
+                    name.includes("deny all") ||
+                    name.includes("block all")
+                );
+            });
 
             if (!denyAllStream) {
-                throw new Error("Deny all traffic stream not found");
+                denyAllStream = streams.find((stream: any) => {
+                    return (
+                        stream.type === "forced" &&
+                        stream.action_type === "do_nothing" &&
+                        (stream.name?.toLowerCase() === "false" ||
+                            stream.filters?.length === 0 ||
+                            (Array.isArray(stream.filters) &&
+                                stream.filters.length > 0 &&
+                                stream.filters.some(
+                                    (f: any) =>
+                                        f.name === "country" &&
+                                        f.mode === "reject",
+                                )))
+                    );
+                });
+            }
+
+            if (!denyAllStream) {
+                Logger.warn(
+                    "Deny all traffic stream not found",
+                    {
+                        campaignId,
+                        availableStreams: streams.map((s: any) => ({
+                            id: s.id,
+                            name: s.name,
+                            type: s.type,
+                            action_type: s.action_type,
+                            filters_count: s.filters?.length || 0,
+                        })),
+                    },
+                    "KeitaroService.closeCloak",
+                );
+                throw new Error(
+                    `Deny all traffic stream not found in campaign ${campaignId}. Available streams: ${streams.map((s: any) => s.name).join(", ")}`,
+                );
             }
 
             const url = this.buildUrl(
@@ -864,6 +918,40 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.closeCloak.name, error);
+        }
+    }
+
+    async allowAllTraffic(
+        campaignId: number,
+        shouldAllow: boolean,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+
+            const denyAllStream = streams.find((stream: any) =>
+                stream.name.toLowerCase().includes("deny all traffic"),
+            );
+
+            if (!denyAllStream) {
+                throw new BadRequestException(
+                    "Deny all traffic stream not found",
+                );
+            }
+
+            const url = this.buildUrl(
+                `admin_api/v1/streams/${denyAllStream.id}`,
+            );
+            const response = await axios.put(
+                url,
+                { state: shouldAllow ? "active" : "disabled" },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.allowAllTraffic.name, error);
         }
     }
 
@@ -946,16 +1034,23 @@ export class KeitaroService {
         targetCampaignId: number,
     ): Promise<any> {
         try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const maxPosition = streams.reduce(
+                (max, stream) => Math.max(max, stream.position || 0),
+                0,
+            );
+            const nextPosition = maxPosition + 1;
+
             const streamData = {
                 campaign_id: campaignId,
                 name: `Naming Share: ${naming}`,
                 type: "regular",
-                position: 1,
+                position: nextPosition,
                 state: "active",
                 weight: 100,
                 action_type: "campaign",
                 action_payload: targetCampaignId.toString(),
-                schema: "landings",
+                schema: "action",
                 filters: [
                     {
                         name: "sub_id_17",
@@ -978,6 +1073,44 @@ export class KeitaroService {
         }
     }
 
+    async toggleTestFlow(campaignId: number, enable: boolean): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const testFlow = streams.find(
+                (stream: any) =>
+                    stream.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.TEST_FLOW,
+            );
+
+            const isConfiguredCorrectly =
+                testFlow &&
+                testFlow.type === "forced" &&
+                Array.isArray(testFlow.offers) &&
+                testFlow.offers.length > 0;
+
+            if (!isConfiguredCorrectly) {
+                throw new BadRequestException(
+                    "Test flow stream does not exist or is incorrectly configured",
+                );
+            }
+
+            const url = this.buildUrl(`admin_api/v1/streams/${testFlow.id}`);
+            const response = await axios.put(
+                url,
+                {
+                    state: enable ? "active" : "disabled",
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.toggleTestFlow.name, error);
+        }
+    }
+
     async getCampaignStreams(campaignId: number) {
         const url = this.buildUrl(
             `admin_api/v1/campaigns/${campaignId}/streams`,
@@ -991,6 +1124,20 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.getCampaignStreams.name, error);
+        }
+    }
+
+    async getStreamById(streamId: number) {
+        const url = this.buildUrl(`admin_api/v1/streams/${streamId}`);
+
+        try {
+            const response = await axios.get(url, {
+                headers: this.generateHeaders(),
+            });
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.getStreamById.name, error);
         }
     }
 
@@ -1248,8 +1395,349 @@ export class KeitaroService {
         };
     }
 
+    async toggleDenyOrgTraffic(
+        campaignId: number,
+        enable: boolean,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const denyOrgStream = streams.find(
+                (stream: any) =>
+                    stream.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            );
+
+            if (!denyOrgStream) {
+                throw new BadRequestException(
+                    "Deny org traffic stream not found",
+                );
+            }
+
+            const response = await axios.put(
+                this.buildUrl(`admin_api/v1/streams/${denyOrgStream.id}`),
+                {
+                    state: enable ? "active" : "disabled",
+                },
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.toggleDenyOrgTraffic.name, error);
+        }
+    }
+
+    async ensureRequiredStreams(campaignId: number): Promise<any[]> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const createdStreams: any[] = [];
+
+            const testFlow = streams.find(
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.TEST_FLOW,
+            );
+            const denyAllTraffic = streams.find(
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+            );
+            const denyOrgTraffic = streams.find(
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            );
+            const testFlowFilter = streams.find(
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+            );
+
+            const getNextPosition = () => {
+                const maxPosition = streams.reduce(
+                    (max, stream) => Math.max(max, stream.position || 0),
+                    0,
+                );
+                return maxPosition + 1;
+            };
+
+            const defaultStreamData = {
+                campaign_id: campaignId,
+                type: "forced",
+                action_payload: "",
+                weight: 0,
+                collect_clicks: true,
+                offers: [],
+                landings: [],
+                triggers: [],
+            };
+
+            if (!testFlow) {
+                const testFlowData = {
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.TEST_FLOW,
+                    schema: "landings",
+                    action_type: "http",
+                    position: getNextPosition(),
+                    state: "disabled",
+                    filter_or: false,
+                    filters: [
+                        {
+                            name: "country",
+                            mode: "accept",
+                            payload: ["PL", "UA", "RO", "MD"],
+                        },
+                    ],
+                    offers: [
+                        {
+                            queryCheckerOfferId: this.configService.get(
+                                "keitaro.testFlowOfferId",
+                            ),
+                            share: 100,
+                            state: "active",
+                        },
+                    ],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    testFlowData,
+                );
+                createdStreams.push({
+                    name: KeitaroService.STREAM_NAMES.TEST_FLOW,
+                    id: created.id,
+                });
+            }
+
+            if (!testFlowFilter) {
+                const filterData = {
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+                    schema: "action",
+                    action_type: "do_nothing",
+                    position: getNextPosition(),
+                    state: "disabled",
+                    filter_or: false,
+                    filters: [
+                        {
+                            name: "country",
+                            mode: "accept",
+                            payload: ["PL", "UA", "RO", "MD"],
+                        },
+                    ],
+                };
+                const created = await this.createStream(campaignId, filterData);
+                createdStreams.push({
+                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+                    id: created.id,
+                });
+            }
+
+            if (!denyAllTraffic) {
+                const denyAllData = {
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+                    schema: "action",
+                    action_type: "do_nothing",
+                    position: getNextPosition(),
+                    state: "active",
+                    filters: [],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    denyAllData,
+                );
+                createdStreams.push({
+                    name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+                    id: created.id,
+                });
+            }
+
+            if (!denyOrgTraffic) {
+                const denyOrgData = {
+                    ...defaultStreamData,
+                    name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+                    schema: "action",
+                    action_type: "do_nothing",
+                    position: getNextPosition(),
+                    state: "disabled",
+                    filter_or: false,
+                    filters: [
+                        { name: "sub_id_17", mode: "reject", payload: null },
+                    ],
+                };
+                const created = await this.createStream(
+                    campaignId,
+                    denyOrgData,
+                );
+                createdStreams.push({
+                    name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+                    id: created.id,
+                });
+            }
+
+            return createdStreams;
+        } catch (error) {
+            this.handleKeitaroError(this.ensureRequiredStreams.name, error);
+        }
+    }
+
+    private async validateIntegrationInternal(
+        campaignId: number,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const issues: any[] = [];
+            const warnings: string[] = [];
+
+            const defaultFlow = streams.find((s) => s.type === "default");
+
+            this.validateDefaultFlow(defaultFlow, campaignId, issues);
+
+            const filterFlows = streams.filter(
+                (s) =>
+                    s.name?.toLowerCase().startsWith("filter") &&
+                    s.type === "forced",
+            );
+            this.validateFilterFlows(filterFlows, issues);
+
+            const namingFlows = streams.filter(
+                (s) =>
+                    s.name?.startsWith("Naming Share:") && s.type === "regular",
+            );
+            this.validateNamingFlows(namingFlows, issues);
+
+            this.checkExtraStreams(streams, warnings);
+
+            return {
+                valid: issues.length === 0,
+                warnings,
+                issues,
+            };
+        } catch (error) {
+            this.handleKeitaroError(
+                this.validateIntegrationInternal.name,
+                error,
+            );
+        }
+    }
+
+    async validateIntegration(campaignId: number): Promise<any> {
+        return this.ensureAndValidateIntegration(campaignId);
+    }
+
+    async ensureAndValidateIntegration(campaignId: number): Promise<any> {
+        try {
+            const createdStreams = await this.ensureRequiredStreams(campaignId);
+            const validationResult =
+                await this.validateIntegrationInternal(campaignId);
+
+            return {
+                ...validationResult,
+                createdStreams,
+            };
+        } catch (error) {
+            this.handleKeitaroError(
+                this.ensureAndValidateIntegration.name,
+                error,
+            );
+        }
+    }
+
+    private validateDefaultFlow(
+        defaultFlow: any,
+        campaignId: number,
+        issues: any[],
+    ): void {
+        if (!defaultFlow) {
+            issues.push({
+                type: "missing_default_flow",
+                streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                message:
+                    "Default flow відсутній. Default flow має перенаправляти на ORG кампанію, а не на APP кампанію. Використайте updateDefaultFlowWithOrgCampaign для налаштування.",
+            });
+        } else if (
+            defaultFlow.action_type === "campaign" &&
+            defaultFlow.action_payload === campaignId.toString()
+        ) {
+            issues.push({
+                type: "self_redirect",
+                streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                message:
+                    "Default flow налаштований на self-redirect (перенаправляє на саму кампанію). Має перенаправляти на ORG кампанію.",
+            });
+        }
+    }
+
+    private validateFilterFlows(filterFlows: any[], issues: any[]): void {
+        for (const filterFlow of filterFlows) {
+            if (!filterFlow.filters || filterFlow.filters.length === 0) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: filterFlow.name,
+                    message: "Filter потік має містити фільтри",
+                });
+            }
+            if (
+                !filterFlow.action_type ||
+                filterFlow.action_type !== "do_nothing"
+            ) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: filterFlow.name,
+                    message:
+                        "Filter потік має містити action_type 'do_nothing'",
+                });
+            }
+        }
+    }
+
+    private validateNamingFlows(namingFlows: any[], issues: any[]): void {
+        for (const namingFlow of namingFlows) {
+            if (namingFlow.action_type !== "campaign") {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: "Naming потік має мати action_type 'campaign'",
+                });
+            }
+            const hasSubId17Filter = namingFlow.filters?.some(
+                (f) => f.name === "sub_id_17",
+            );
+            if (!hasSubId17Filter) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: "Naming потік має містити фільтр sub_id_17",
+                });
+            }
+        }
+    }
+
+    private checkExtraStreams(streams: any[], warnings: string[]): void {
+        const allowedNames = [
+            KeitaroService.STREAM_NAMES.TEST_FLOW,
+            KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+            KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+            KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            KeitaroService.STREAM_NAMES.DEFAULT,
+        ];
+        const extraStreams = streams.filter(
+            (s) =>
+                !s.name?.startsWith("Naming Share:") &&
+                !s.name?.toLowerCase().startsWith("filter") &&
+                !allowedNames.includes(s.name?.toLowerCase()) &&
+                s.type !== "default",
+        );
+        if (extraStreams.length > 0) {
+            warnings.push(
+                `Знайдено зайві потоки: ${extraStreams.map((s) => s.name).join(", ")}`,
+            );
+        }
+    }
+
     private handleKeitaroError(methodName: string, error: any): never {
-        // Додаємо назву методу в помилку
         if (error instanceof axios.AxiosError) {
             (error as any).isKeitaroError = true;
             (error as any).keitaroMethod = methodName;

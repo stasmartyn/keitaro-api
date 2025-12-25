@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CopyCampaignDto {
     @IsNumber()
@@ -10,9 +10,11 @@ export class CopyCampaignDto {
     @IsString()
     name: string;
 
+    @IsOptional()
     @IsString()
-    sub_id: string;
+    sub_id?: string;
 
+    @IsOptional()
     @IsBoolean()
-    change_parameters: boolean;
+    change_parameters?: boolean;
 }

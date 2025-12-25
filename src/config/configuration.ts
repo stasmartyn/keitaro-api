@@ -33,6 +33,10 @@ export default () => ({
         ),
         iosSubId: process.env.IOS_SUB_ID,
         androidSubId: process.env.ANDROID_SUB_ID,
+        testFlowOfferId: parseInt(
+            process.env.KEITARO_TEST_FLOW_OFFER_ID || "3412",
+            10,
+        ),
     },
     failover: {
         // Campaign Groups
