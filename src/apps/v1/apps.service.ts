@@ -664,6 +664,24 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+
+        if (
+            !copyResult ||
+            !Array.isArray(copyResult) ||
+            copyResult.length === 0
+        ) {
+            throw new BadRequestException(
+                `Failed to copy campaign. Invalid response from Keitaro API.`,
+            );
+        }
+
+        const copiedCampaign = copyResult[0];
+        if (!copiedCampaign || !copiedCampaign.id) {
+            throw new BadRequestException(
+                `Failed to copy campaign. Copied campaign data is invalid.`,
+            );
+        }
+
         const data: any = {
             name,
             alias,
@@ -671,7 +689,7 @@ export class AppsService {
         };
         if (change_parameters) {
             data.parameters = {
-                ...copyResult[0].parameters,
+                ...copiedCampaign.parameters,
                 sub_id_15: {
                     name: "user_id",
                     placeholder: sub_id,
@@ -680,7 +698,7 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(copyResult[0].id, data);
+        return await this.keitaroClient.updateCampaign(copiedCampaign.id, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {
