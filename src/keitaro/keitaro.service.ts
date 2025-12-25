@@ -1214,6 +1214,20 @@ export class KeitaroService {
                 },
             );
 
+            console.log("template", template);
+
+            if (
+                !template ||
+                !Array.isArray(template) ||
+                template.length === 0 ||
+                !template[0] ||
+                !template[0].id
+            ) {
+                throw new Error(
+                    "Failed to clone campaign template. Invalid response from Keitaro API.",
+                );
+            }
+
             const alias = generateUniqueAlias();
             const newCampaignData = {
                 alias,
@@ -1232,6 +1246,12 @@ export class KeitaroService {
                     headers: this.generateHeaders(),
                 },
             );
+
+            if (!campaign || !campaign.id) {
+                throw new Error(
+                    "Failed to update campaign. Invalid response from Keitaro API.",
+                );
+            }
 
             const streamsUrl = this.buildUrl(
                 `admin_api/v1/campaigns/${campaign.id}/streams`,
