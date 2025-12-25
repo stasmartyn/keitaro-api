@@ -13,6 +13,11 @@ import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
 import { ShareNamingDto } from "../dto/share-naming.dto";
+import { AllowTrafficDto } from "../dto/allow-traffic.dto";
+import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
+import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
+import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { UpdateStreamDto } from "../dto/update-stream.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -26,6 +31,21 @@ export class AppsController {
     @Get("full-campaign-info/:id")
     async getFullCampaignInfo(@Param("id") id: string) {
         return this.appsService.getFullCampaignInfo(id);
+    }
+
+    @Get("campaign/:id/streams")
+    async getCampaignStreams(@Param("id") id: string) {
+        return this.appsService.getCampaignStreams(id);
+    }
+
+    @Get("streams/:id")
+    async getStreamById(@Param("id") id: string) {
+        return this.appsService.getStreamById(id);
+    }
+
+    @Put("streams/:id")
+    async updateStream(@Param("id") id: string, @Body() body: UpdateStreamDto) {
+        return this.appsService.updateStream(id, body);
     }
 
     @Put("campaign/:id")
@@ -99,5 +119,25 @@ export class AppsController {
     @Post("share-naming")
     async shareNaming(@Body() body: ShareNamingDto) {
         return this.appsService.shareNaming(body);
+    }
+
+    @Post("allow-all-traffic")
+    async allowAllTraffic(@Body() body: AllowTrafficDto) {
+        return this.appsService.allowAllTraffic(body);
+    }
+
+    @Post("toggle-test-flow")
+    async toggleTestFlow(@Body() body: ToggleTestFlowDto) {
+        return this.appsService.toggleTestFlow(body);
+    }
+
+    @Post("validate-integration")
+    async validateIntegration(@Body() body: ValidateIntegrationDto) {
+        return this.appsService.validateIntegration(body);
+    }
+
+    @Post("toggle-deny-org-traffic")
+    async toggleDenyOrgTraffic(@Body() body: ToggleDenyOrgTrafficDto) {
+        return this.appsService.toggleDenyOrgTraffic(body);
     }
 }
