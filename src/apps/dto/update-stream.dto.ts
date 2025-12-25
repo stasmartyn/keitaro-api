@@ -17,7 +17,8 @@ export class UpdateStreamDto {
     action_type?: string;
 
     @IsOptional()
-    action_payload?: string | number | object;
+    @IsString()
+    action_payload?: string;
 
     @IsOptional()
     @IsString()

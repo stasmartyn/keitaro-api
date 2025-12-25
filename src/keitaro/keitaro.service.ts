@@ -403,7 +403,14 @@ export class KeitaroService {
     async createORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
             const falseFilters = this.buildFalseFilters(isIos);
-            const streamsData = orgStreamParams(isIos, falseFilters);
+            const testFlowOfferId = this.configService.get(
+                "keitaro.testFlowOfferId",
+            );
+            const streamsData = orgStreamParams(
+                isIos,
+                falseFilters,
+                testFlowOfferId,
+            );
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -419,7 +426,10 @@ export class KeitaroService {
 
     async createNoORGCampaignStreams(campaignId: number, isIos: boolean) {
         try {
-            const streamsData = noOrgStreamParams(isIos);
+            const testFlowOfferId = this.configService.get(
+                "keitaro.testFlowOfferId",
+            );
+            const streamsData = noOrgStreamParams(isIos, testFlowOfferId);
 
             return await this.createStreamsAndExtractIds(
                 campaignId,
@@ -1408,11 +1418,9 @@ export class KeitaroService {
         }
     }
 
-    async validateIntegration(campaignId: number): Promise<any> {
+    async ensureRequiredStreams(campaignId: number): Promise<any[]> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const issues: any[] = [];
-            const warnings: string[] = [];
             const createdStreams: any[] = [];
 
             const testFlow = streams.find(
@@ -1430,7 +1438,11 @@ export class KeitaroService {
                     s.name?.toLowerCase() ===
                     KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             );
-            const defaultFlow = streams.find((s) => s.type === "default");
+            const testFlowFilter = streams.find(
+                (s) =>
+                    s.name?.toLowerCase() ===
+                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+            );
 
             const getNextPosition = () => {
                 const maxPosition = streams.reduce(
@@ -1469,7 +1481,9 @@ export class KeitaroService {
                     ],
                     offers: [
                         {
-                            queryCheckerOfferId: 3412,
+                            queryCheckerOfferId: this.configService.get(
+                                "keitaro.testFlowOfferId",
+                            ),
                             share: 100,
                             state: "active",
                         },
@@ -1483,14 +1497,8 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
                     id: created.id,
                 });
-                streams.push(created);
             }
 
-            const testFlowFilter = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-            );
             if (!testFlowFilter) {
                 const filterData = {
                     ...defaultStreamData,
@@ -1513,7 +1521,6 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     id: created.id,
                 });
-                streams.push(created);
             }
 
             if (!denyAllTraffic) {
@@ -1534,7 +1541,6 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
                     id: created.id,
                 });
-                streams.push(created);
             }
 
             if (!denyOrgTraffic) {
@@ -1558,102 +1564,165 @@ export class KeitaroService {
                     name: KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
                     id: created.id,
                 });
-                streams.push(created);
             }
 
-            if (!defaultFlow) {
-                issues.push({
-                    type: "missing_default_flow",
-                    streamName: KeitaroService.STREAM_NAMES.DEFAULT,
-                    message:
-                        "Default flow відсутній. Default flow має перенаправляти на ORG кампанію, а не на APP кампанію. Використайте updateDefaultFlowWithOrgCampaign для налаштування.",
-                });
-            } else if (
-                defaultFlow.action_type === "campaign" &&
-                defaultFlow.action_payload === campaignId.toString()
-            ) {
-                issues.push({
-                    type: "self_redirect",
-                    streamName: KeitaroService.STREAM_NAMES.DEFAULT,
-                    message:
-                        "Default flow налаштований на self-redirect (перенаправляє на саму кампанію). Має перенаправляти на ORG кампанію.",
-                });
-            }
+            return createdStreams;
+        } catch (error) {
+            this.handleKeitaroError(this.ensureRequiredStreams.name, error);
+        }
+    }
+
+    private async validateIntegrationInternal(
+        campaignId: number,
+    ): Promise<any> {
+        try {
+            const streams = await this.getCampaignStreams(campaignId);
+            const issues: any[] = [];
+            const warnings: string[] = [];
+
+            const defaultFlow = streams.find((s) => s.type === "default");
+
+            this.validateDefaultFlow(defaultFlow, campaignId, issues);
 
             const filterFlows = streams.filter(
                 (s) =>
                     s.name?.toLowerCase().startsWith("filter") &&
                     s.type === "forced",
             );
-            for (const filterFlow of filterFlows) {
-                if (!filterFlow.filters || filterFlow.filters.length === 0) {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: filterFlow.name,
-                        message: "Filter потік має містити фільтри",
-                    });
-                }
-                if (filterFlow.action_type) {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: filterFlow.name,
-                        message: "Filter потік не має мати action_type",
-                    });
-                }
-            }
+            this.validateFilterFlows(filterFlows, issues);
 
             const namingFlows = streams.filter(
                 (s) =>
                     s.name?.startsWith("Naming Share:") && s.type === "regular",
             );
-            for (const namingFlow of namingFlows) {
-                if (namingFlow.action_type !== "campaign") {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: namingFlow.name,
-                        message: "Naming потік має мати action_type 'campaign'",
-                    });
-                }
-                const hasSubId17Filter = namingFlow.filters?.some(
-                    (f) => f.name === "sub_id_17",
-                );
-                if (!hasSubId17Filter) {
-                    issues.push({
-                        type: "incorrect_config",
-                        streamName: namingFlow.name,
-                        message: "Naming потік має містити фільтр sub_id_17",
-                    });
-                }
-            }
+            this.validateNamingFlows(namingFlows, issues);
 
-            const allowedNames = [
-                KeitaroService.STREAM_NAMES.TEST_FLOW,
-                KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-                KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
-                KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
-                KeitaroService.STREAM_NAMES.DEFAULT,
-            ];
-            const extraStreams = streams.filter(
-                (s) =>
-                    !s.name?.startsWith("Naming Share:") &&
-                    !s.name?.toLowerCase().startsWith("filter") &&
-                    !allowedNames.includes(s.name?.toLowerCase()) &&
-                    s.type !== "default",
-            );
-            if (extraStreams.length > 0) {
-                warnings.push(
-                    `Знайдено зайві потоки: ${extraStreams.map((s) => s.name).join(", ")}`,
-                );
-            }
+            this.checkExtraStreams(streams, warnings);
 
             return {
                 valid: issues.length === 0,
                 warnings,
-                createdStreams,
                 issues,
             };
         } catch (error) {
-            this.handleKeitaroError(this.validateIntegration.name, error);
+            this.handleKeitaroError(
+                this.validateIntegrationInternal.name,
+                error,
+            );
+        }
+    }
+
+    async validateIntegration(campaignId: number): Promise<any> {
+        return this.ensureAndValidateIntegration(campaignId);
+    }
+
+    async ensureAndValidateIntegration(campaignId: number): Promise<any> {
+        try {
+            const createdStreams = await this.ensureRequiredStreams(campaignId);
+            const validationResult =
+                await this.validateIntegrationInternal(campaignId);
+
+            return {
+                ...validationResult,
+                createdStreams,
+            };
+        } catch (error) {
+            this.handleKeitaroError(
+                this.ensureAndValidateIntegration.name,
+                error,
+            );
+        }
+    }
+
+    private validateDefaultFlow(
+        defaultFlow: any,
+        campaignId: number,
+        issues: any[],
+    ): void {
+        if (!defaultFlow) {
+            issues.push({
+                type: "missing_default_flow",
+                streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                message:
+                    "Default flow відсутній. Default flow має перенаправляти на ORG кампанію, а не на APP кампанію. Використайте updateDefaultFlowWithOrgCampaign для налаштування.",
+            });
+        } else if (
+            defaultFlow.action_type === "campaign" &&
+            defaultFlow.action_payload === campaignId.toString()
+        ) {
+            issues.push({
+                type: "self_redirect",
+                streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                message:
+                    "Default flow налаштований на self-redirect (перенаправляє на саму кампанію). Має перенаправляти на ORG кампанію.",
+            });
+        }
+    }
+
+    private validateFilterFlows(filterFlows: any[], issues: any[]): void {
+        for (const filterFlow of filterFlows) {
+            if (!filterFlow.filters || filterFlow.filters.length === 0) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: filterFlow.name,
+                    message: "Filter потік має містити фільтри",
+                });
+            }
+            if (
+                !filterFlow.action_type ||
+                filterFlow.action_type !== "do_nothing"
+            ) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: filterFlow.name,
+                    message:
+                        "Filter потік має містити action_type 'do_nothing'",
+                });
+            }
+        }
+    }
+
+    private validateNamingFlows(namingFlows: any[], issues: any[]): void {
+        for (const namingFlow of namingFlows) {
+            if (namingFlow.action_type !== "campaign") {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: "Naming потік має мати action_type 'campaign'",
+                });
+            }
+            const hasSubId17Filter = namingFlow.filters?.some(
+                (f) => f.name === "sub_id_17",
+            );
+            if (!hasSubId17Filter) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: "Naming потік має містити фільтр sub_id_17",
+                });
+            }
+        }
+    }
+
+    private checkExtraStreams(streams: any[], warnings: string[]): void {
+        const allowedNames = [
+            KeitaroService.STREAM_NAMES.TEST_FLOW,
+            KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
+            KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+            KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            KeitaroService.STREAM_NAMES.DEFAULT,
+        ];
+        const extraStreams = streams.filter(
+            (s) =>
+                !s.name?.startsWith("Naming Share:") &&
+                !s.name?.toLowerCase().startsWith("filter") &&
+                !allowedNames.includes(s.name?.toLowerCase()) &&
+                s.type !== "default",
+        );
+        if (extraStreams.length > 0) {
+            warnings.push(
+                `Знайдено зайві потоки: ${extraStreams.map((s) => s.name).join(", ")}`,
+            );
         }
     }
 

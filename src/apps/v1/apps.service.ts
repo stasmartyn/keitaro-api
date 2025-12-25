@@ -350,29 +350,28 @@ export class AppsService {
         return await this.keitaroClient.deleteTrafficSource(id);
     }
 
-    private async getFullCampaignInfoInternal(id: string) {
-        const campaignId = parseInt(id, 10);
-        if (isNaN(campaignId)) {
-            throw new BadRequestException("Invalid campaign ID");
+    private parseNumberId(id: string, paramName: string): number {
+        const parsedId = parseInt(id, 10);
+        if (isNaN(parsedId)) {
+            throw new BadRequestException(`Invalid ${paramName}`);
         }
+        return parsedId;
+    }
+
+    private async getFullCampaignInfoInternal(id: string) {
+        const campaignId = this.parseNumberId(id, "campaign ID");
 
         return await this.campaignDataService.getFullCampaignInfo(campaignId);
     }
 
     private async getCampaignStreamsInternal(id: string) {
-        const campaignId = parseInt(id, 10);
-        if (isNaN(campaignId)) {
-            throw new BadRequestException("Invalid campaign ID");
-        }
+        const campaignId = this.parseNumberId(id, "campaign ID");
 
         return await this.keitaroClient.getCampaignStreams(campaignId);
     }
 
     private async getStreamByIdInternal(id: string) {
-        const streamId = parseInt(id, 10);
-        if (isNaN(streamId)) {
-            throw new BadRequestException("Invalid stream ID");
-        }
+        const streamId = this.parseNumberId(id, "stream ID");
         const stream = await this.keitaroClient.getStreamById(streamId);
         return stream;
     }
@@ -392,19 +391,13 @@ export class AppsService {
     }
 
     private async updateStreamInternal(id: string, body: UpdateStreamDto) {
-        const streamId = parseInt(id, 10);
-        if (isNaN(streamId)) {
-            throw new BadRequestException("Invalid stream ID");
-        }
+        const streamId = this.parseNumberId(id, "stream ID");
 
         return await this.keitaroClient.updateStream(streamId, body);
     }
 
     private async updateCampaignInternal(id: string, body: UpdateCampaignDto) {
-        const campaignId = parseInt(id, 10);
-        if (isNaN(campaignId)) {
-            throw new BadRequestException("Invalid campaign ID");
-        }
+        const campaignId = this.parseNumberId(id, "campaign ID");
 
         return await this.keitaroClient.updateCampaign(campaignId, body);
     }
@@ -922,8 +915,29 @@ export class AppsService {
         return await this.keitaroClient.closeCloak(campaignId);
     }
 
+    private extractCampaignId(body: any): number | undefined {
+        if (body.campaignId !== undefined) {
+            return body.campaignId;
+        }
+
+        if ((body as any).campaign_id !== undefined) {
+            Logger.warn(
+                "Deprecated: Using snake_case 'campaign_id' is deprecated. Please use camelCase 'campaignId' instead.",
+                {
+                    endpoint: "campaignId extraction",
+                    deprecatedField: "campaign_id",
+                    recommendedField: "campaignId",
+                },
+                "AppsService",
+            );
+            return (body as any).campaign_id;
+        }
+
+        return undefined;
+    }
+
     private async allowAllTrafficInternal(body: AllowTrafficDto) {
-        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const campaignId = this.extractCampaignId(body);
         const allow = body.allow;
 
         if (!campaignId) {
@@ -962,7 +976,7 @@ export class AppsService {
     }
 
     private async toggleTestFlowInternal(body: ToggleTestFlowDto) {
-        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const campaignId = this.extractCampaignId(body);
         const enable = body.enable;
 
         if (!campaignId || enable === undefined || enable === null) {
@@ -975,7 +989,7 @@ export class AppsService {
     }
 
     private async validateIntegrationInternal(body: ValidateIntegrationDto) {
-        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const campaignId = this.extractCampaignId(body);
 
         if (campaignId === undefined) {
             throw new BadRequestException("Missing required field: campaignId");
@@ -985,7 +999,7 @@ export class AppsService {
     }
 
     private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
-        const campaignId = body.campaignId ?? (body as any).campaign_id;
+        const campaignId = this.extractCampaignId(body);
         const enable = body.enable;
 
         if (!campaignId || enable === undefined || enable === null) {
