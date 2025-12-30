@@ -7,8 +7,8 @@ export class ShareNamingDto {
     @IsString()
     naming: string;
 
-    @IsNumber()
     @IsOptional()
+    @IsNumber()
     keitaroCampaign?: number;
 
     @IsNumber()
