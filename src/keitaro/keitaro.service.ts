@@ -734,7 +734,6 @@ export class KeitaroService {
         const updates: any[] = [];
 
         try {
-            // Отримуємо існуючі потоки кампанії
             const existingStreams = await this.getCampaignStreams(campaignId);
 
             // Знаходимо потоки з неймінгами (починаються з "Naming Share:")
@@ -753,49 +752,31 @@ export class KeitaroService {
             for (const namingData of namingStreams) {
                 const { naming, targetCampaignId } = namingData;
 
-                if (existingNamingMap.has(naming)) {
-                    // Оновлюємо існуючий потік
-                    const existingStream = existingNamingMap.get(naming);
-                    updates.push(
-                        this.updateStream(existingStream.id, {
-                            action_payload: targetCampaignId.toString(),
-                            state: "active",
+                updates.push(
+                    this.shareNaming(campaignId, naming, targetCampaignId)
+                        .then((result) => {
+                            const streamId = result.stream?.id;
+                            return {
+                                type:
+                                    result.created > 0
+                                        ? "naming_stream_create"
+                                        : result.updated > 0
+                                          ? "naming_stream_update"
+                                          : "naming_stream_skip",
+                                id: streamId,
+                                naming: naming,
+                                success: true,
+                                data: result,
+                            };
                         })
-                            .then((result) => ({
-                                type: "naming_stream_update",
-                                id: existingStream.id,
-                                naming: naming,
-                                success: true,
-                                data: result,
-                            }))
-                            .catch((error) => ({
-                                type: "naming_stream_update",
-                                id: existingStream.id,
-                                naming: naming,
-                                success: false,
-                                error: error.message,
-                            })),
-                    );
-                } else {
-                    // Створюємо новий потік
-                    updates.push(
-                        this.shareNaming(campaignId, naming, targetCampaignId)
-                            .then((result) => ({
-                                type: "naming_stream_create",
-                                id: result.id,
-                                naming: naming,
-                                success: true,
-                                data: result,
-                            }))
-                            .catch((error) => ({
-                                type: "naming_stream_create",
-                                id: null,
-                                naming: naming,
-                                success: false,
-                                error: error.message,
-                            })),
-                    );
-                }
+                        .catch((error) => ({
+                            type: "naming_stream_error",
+                            id: null,
+                            naming: naming,
+                            success: false,
+                            error: error.message,
+                        })),
+                );
             }
 
             // Видаляємо потоки, які більше не потрібні
@@ -1032,9 +1013,44 @@ export class KeitaroService {
         campaignId: number,
         naming: string,
         targetCampaignId: number,
-    ): Promise<any> {
+    ): Promise<{
+        created: number;
+        updated: number;
+        skipped: number;
+        stream?: any;
+    }> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
+            const streamName = `Naming Share: ${naming}`;
+            const targetCampaignIdString = targetCampaignId.toString();
+
+            const existingStream = streams.find((s) => s.name === streamName);
+
+            if (existingStream) {
+                if (existingStream.action_payload === targetCampaignIdString) {
+                    return {
+                        created: 0,
+                        updated: 0,
+                        skipped: 1,
+                        stream: existingStream,
+                    };
+                } else {
+                    const updatedStream = await this.updateStream(
+                        existingStream.id,
+                        {
+                            action_payload: targetCampaignIdString,
+                            state: "active",
+                        },
+                    );
+                    return {
+                        created: 0,
+                        updated: 1,
+                        skipped: 0,
+                        stream: updatedStream,
+                    };
+                }
+            }
+
             const maxPosition = streams.reduce(
                 (max, stream) => Math.max(max, stream.position || 0),
                 0,
@@ -1043,13 +1059,13 @@ export class KeitaroService {
 
             const streamData = {
                 campaign_id: campaignId,
-                name: `Naming Share: ${naming}`,
+                name: streamName,
                 type: "regular",
                 position: nextPosition,
                 state: "active",
                 weight: 100,
                 action_type: "campaign",
-                action_payload: targetCampaignId.toString(),
+                action_payload: targetCampaignIdString,
                 schema: "action",
                 filters: [
                     {
@@ -1067,7 +1083,12 @@ export class KeitaroService {
                 headers: this.generateHeaders(),
             });
 
-            return response.data;
+            return {
+                created: 1,
+                updated: 0,
+                skipped: 0,
+                stream: response.data,
+            };
         } catch (error) {
             this.handleKeitaroError(this.shareNaming.name, error);
         }

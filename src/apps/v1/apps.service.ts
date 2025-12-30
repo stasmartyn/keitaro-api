@@ -970,13 +970,15 @@ export class AppsService {
     }
 
     private async shareNamingInternal(body: ShareNamingDto) {
-        const { campaignId, naming, targetCampaignId } = body;
+        const { campaignId, naming, keitaroCampaign, orgCampaignId } = body;
 
-        if (!campaignId || !naming || !targetCampaignId) {
+        if (!campaignId || !naming || orgCampaignId === undefined) {
             throw new BadRequestException(
-                "Missing required fields: campaignId, naming, targetCampaignId",
+                "Missing required fields: campaignId, naming, orgCampaignId",
             );
         }
+
+        const targetCampaignId = keitaroCampaign ?? orgCampaignId;
 
         return await this.keitaroClient.shareNaming(
             campaignId,
