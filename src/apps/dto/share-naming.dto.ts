@@ -1,4 +1,4 @@
-import { IsNumber, IsString } from "class-validator";
+import { IsNumber, IsOptional, IsString } from "class-validator";
 
 export class ShareNamingDto {
     @IsNumber()
@@ -7,6 +7,10 @@ export class ShareNamingDto {
     @IsString()
     naming: string;
 
+    @IsOptional()
     @IsNumber()
-    targetCampaignId: number;
+    keitaroCampaign?: number;
+
+    @IsNumber()
+    orgCampaignId: number;
 }
