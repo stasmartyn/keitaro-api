@@ -26,7 +26,6 @@ import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.inter
 export class KeitaroService {
     private static readonly STREAM_NAMES = {
         TEST_FLOW: "test flow",
-        FILTER_TEST_FLOW: "filter test flow",
         DENY_ALL_TRAFFIC: "deny all traffic",
         DENY_ORG_TRAFFIC: "deny org traffic",
         DEFAULT: "default",
@@ -1490,11 +1489,6 @@ export class KeitaroService {
                     s.name?.toLowerCase() ===
                     KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             );
-            const testFlowFilter = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-            );
 
             const getNextPosition = () => {
                 const maxPosition = streams.reduce(
@@ -1547,30 +1541,6 @@ export class KeitaroService {
                 );
                 createdStreams.push({
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
-                    id: created.id,
-                });
-            }
-
-            if (!testFlowFilter) {
-                const filterData = {
-                    ...defaultStreamData,
-                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-                    schema: "action",
-                    action_type: "do_nothing",
-                    position: getNextPosition(),
-                    state: "disabled",
-                    filter_or: false,
-                    filters: [
-                        {
-                            name: "country",
-                            mode: "accept",
-                            payload: ["PL", "UA", "RO", "MD"],
-                        },
-                    ],
-                };
-                const created = await this.createStream(campaignId, filterData);
-                createdStreams.push({
-                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     id: created.id,
                 });
             }
@@ -1759,7 +1729,6 @@ export class KeitaroService {
     private checkExtraStreams(streams: any[], warnings: string[]): void {
         const allowedNames = [
             KeitaroService.STREAM_NAMES.TEST_FLOW,
-            KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
             KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
             KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             KeitaroService.STREAM_NAMES.DEFAULT,
