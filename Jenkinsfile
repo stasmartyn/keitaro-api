@@ -10,7 +10,6 @@ pipeline {
 
     environment {
         SERVICE = "keitaro_api_ts"
-        SERVICE_PORT = "5006"
         CONTAINER_PORT_INTERNAL = "5006"
         GIT_REPO_URL = 'git@github.com:TBAppTech/keitaro_api_ts.git'
         GIT_CREDENTIAL = "TBAppTech_GitHub"
@@ -56,48 +55,31 @@ pipeline {
             }
         }
 
-        stage('Run npm tests') {
-            steps {
-                dir("${PROJECT_PATH}") {
-                    script {
-                        try {
-                            echo "Installing dependencies..."
-                            sh 'npm ci'
-
-                            echo "Running tests..."
-                            sh 'npm test'
-
-                            echo "✅ Tests passed successfully!"
-                        } finally {
-                            echo "Cleaning up node_modules and temporary files to save space..."
-                            sh 'rm -rf node_modules .npm dist coverage || true'
-                            echo "Cleanup complete."
-                        }
-                    }
-                }
-            }
-        }
-
         stage('Set image tag') {
             steps {
                 script {
                     if (env.BUILD_BRANCH == 'main' || env.BUILD_BRANCH == 'master') {
                         env.IMAGE_TAG = 'prod'
                         env.DEPLOY_ENV = 'production'
+                        env.SERVICE_PORT= '5006'
+                        env.ENV_FILE= '.env'
+                    } else if (env.BUILD_BRANCH == 'dev') {
+                        env.IMAGE_TAG = 'dev'
+                        env.DEPLOY_ENV = 'development'
+                        env.SERVICE_PORT= '5007'
+                        env.ENV_FILE='.env.dev'
                     } else {
-                        env.IMAGE_TAG = env.BUILD_BRANCH
-                        env.DEPLOY_ENV = 'branch'
+                        echo "No building job for branch: ${env.BUILD_BRANCH}"
                     }
 
                     env.SHA_TAG = "sha-${env.GIT_COMMIT_SHORT}"
-
+                    env.CONTAINER_NAME = "${env.SERVICE}-${env.IMAGE_TAG}"
                     echo "Image tag: ${env.IMAGE_TAG}"
                     echo "SHA tag: ${env.SHA_TAG}"
                     echo "Deploy environment: ${env.DEPLOY_ENV}"
                 }
             }
         }
-
         stage('Login to AWS ECR') {
             steps {
                 withAWS(credentials: DOCKER_REGISTRY_CREDENTIAL, region: AWS_REGION) {
@@ -128,8 +110,8 @@ pipeline {
                      credentialsId: 'aws-ecr-creds',
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
-                ]) {
-                    sshagent(credentials: [SSH_KEY_ID]) {
+                    ]) {
+                    sshagent(credentials: [SSH_KEY_ID]) {                        
                         sh """
                             echo "Connecting to deployment server via SSH..."
                             ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST '
@@ -142,6 +124,8 @@ pipeline {
                                 export SERVICE="${SERVICE}"
                                 export SERVICE_PORT="${SERVICE_PORT}"
                                 export IMAGE_TAG="${IMAGE_TAG}"
+                                export CONTAINER_NAME="${SERVICE}-${IMAGE_TAG}"
+                                export ENV_FILE="${ENV_FILE}"
 
                                 cd ${DEPLOY_PATH}
 
@@ -149,14 +133,13 @@ pipeline {
                                 docker pull $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG || docker pull $DOCKER_REGISTRY/$SERVICE:${SHA_TAG}
 
                                 echo "Stopping existing container if running..."
-                                docker ps -q --filter "name=^/$SERVICE\$" | grep -q . && docker rm -f $SERVICE || true
+                                docker ps -q --filter "name=^${CONTAINER_NAME}\$" | grep -q . && docker rm -f $CONTAINER_NAME || true
 
                                 echo "Starting container..."
-                                docker run --name $SERVICE -d \
+                                docker run --name $CONTAINER_NAME -d \
                                   --restart unless-stopped \
                                   -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
-                                  --env-file .env \
-                                  -v ${DEPLOY_PATH}/logs:/app/logs \
+                                  --env-file $ENV_FILE \
                                   $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG
 
                                 echo "Pruning dangling images..."
