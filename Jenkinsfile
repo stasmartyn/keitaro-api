@@ -73,7 +73,7 @@ pipeline {
                     }
 
                     env.SHA_TAG = "sha-${env.GIT_COMMIT_SHORT}"
-                    env.CONTAINER_NAME = "${env.SERVICE}-${env.IMAGE_TAG}"
+                    env.CONTAINER_NAME = "${env.SERVICE}_${env.IMAGE_TAG}"
                     echo "Image tag: ${env.IMAGE_TAG}"
                     echo "SHA tag: ${env.SHA_TAG}"
                     echo "Deploy environment: ${env.DEPLOY_ENV}"
