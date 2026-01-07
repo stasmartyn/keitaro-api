@@ -73,7 +73,7 @@ pipeline {
                     }
 
                     env.SHA_TAG = "sha-${env.GIT_COMMIT_SHORT}"
-                    env.CONTAINER_NAME = "${env.SERVICE}-${env.IMAGE_TAG}"
+                    env.CONTAINER_NAME = "${env.SERVICE}_${env.IMAGE_TAG}"
                     echo "Image tag: ${env.IMAGE_TAG}"
                     echo "SHA tag: ${env.SHA_TAG}"
                     echo "Deploy environment: ${env.DEPLOY_ENV}"
@@ -185,7 +185,7 @@ pipeline {
                 def branch = env.BUILD_BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                 def imageTag = env.IMAGE_TAG ?: 'N/A'
                 def message = """
-❌ *FAILURE: '${env.JOB_NAME}' failed!*
+❌ *FAILURE: '${env.JOB_NAME}' failed!* @aliens199
 ━━━━━━━━━━━━━━━━━━━━━━━
 🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
 🌿 *Branch:* ${branch}
