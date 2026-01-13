@@ -95,7 +95,8 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry("https://${DOCKER_REGISTRY}") {
-                        def app = docker.build("${DOCKER_REGISTRY}/${SERVICE}:${IMAGE_TAG}", PROJECT_PATH)
+                        def dockerfile = env.IMAGE_TAG == 'dev' ? 'Dockerfile.dev' : 'Dockerfile'
+                        def app = docker.build("${DOCKER_REGISTRY}/${SERVICE}:${IMAGE_TAG}", "-f ${dockerfile} ${PROJECT_PATH}")
                         app.push()
                         app.push("${SHA_TAG}")
                     }
@@ -136,20 +137,11 @@ pipeline {
                                 docker ps -q --filter "name=^${CONTAINER_NAME}\$" | grep -q . && docker rm -f $CONTAINER_NAME || true
 
                                 echo "Starting container..."
-                                if [ "$IMAGE_TAG" = "dev" ]; then
-                                  docker run --name $CONTAINER_NAME -d \
-                                    --restart unless-stopped \
-                                    -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
-                                    --env-file $ENV_FILE \
-                                    $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG \
-                                    npm run start:dev
-                                else
-                                  docker run --name $CONTAINER_NAME -d \
-                                    --restart unless-stopped \
-                                    -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
-                                    --env-file $ENV_FILE \
-                                    $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG
-                                fi
+                                docker run --name $CONTAINER_NAME -d \
+                                  --restart unless-stopped \
+                                  -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
+                                  --env-file $ENV_FILE \
+                                  $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG
 
                                 echo "Pruning dangling images..."
                                 docker image prune -f || true
