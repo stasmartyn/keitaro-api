@@ -136,11 +136,20 @@ pipeline {
                                 docker ps -q --filter "name=^${CONTAINER_NAME}\$" | grep -q . && docker rm -f $CONTAINER_NAME || true
 
                                 echo "Starting container..."
-                                docker run --name $CONTAINER_NAME -d \
-                                  --restart unless-stopped \
-                                  -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
-                                  --env-file $ENV_FILE \
-                                  $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG
+                                if [ "$IMAGE_TAG" = "dev" ]; then
+                                  docker run --name $CONTAINER_NAME -d \
+                                    --restart unless-stopped \
+                                    -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
+                                    --env-file $ENV_FILE \
+                                    $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG \
+                                    npm run start:dev
+                                else
+                                  docker run --name $CONTAINER_NAME -d \
+                                    --restart unless-stopped \
+                                    -p $SERVICE_PORT:$CONTAINER_PORT_INTERNAL \
+                                    --env-file $ENV_FILE \
+                                    $DOCKER_REGISTRY/$SERVICE:$IMAGE_TAG
+                                fi
 
                                 echo "Pruning dangling images..."
                                 docker image prune -f || true
