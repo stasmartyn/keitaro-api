@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: keitaro_api_redis_prod
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    command: redis-server --requirepass prod_redis_secure_password_123 --appendonly yes
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - keitaro_prod_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "prod_redis_secure_password_123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_prod_data:
+    driver: local
+
+networks:
+  keitaro_prod_network:
+    driver: bridge
