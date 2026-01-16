@@ -3,6 +3,7 @@ import { AppService } from "./app.service";
 import { RedisService } from "../redis/redis.service";
 import { ConnectionDB } from "../common/enums/db-enums";
 import * as mongoose from "mongoose";
+import { Logger } from "../utils/logger";
 
 @Controller()
 export class AppController {
@@ -31,10 +32,12 @@ export class AppController {
             redis: {
                 connected: redisStatus.connected,
                 ping_ms: redisStatus.ping_ms,
+                error: redisStatus.error,
             },
             mongodb: {
                 connected: mongoStatus.connected,
                 ping_ms: mongoStatus.ping_ms,
+                error: mongoStatus.error,
             },
         };
     }
@@ -42,21 +45,30 @@ export class AppController {
     private async checkMongoConnection(): Promise<{
         connected: boolean;
         ping_ms?: number;
+        error?: string;
     }> {
         try {
             const start = Date.now();
-            const result = await this.mongooseConnection.connection.db
-                .admin()
-                .ping();
-            const ping_ms = Date.now() - start;
+            const isConnected =
+                this.mongooseConnection.connection.readyState === 1;
 
-            if (result && this.mongooseConnection.connection.readyState === 1) {
-                return { connected: true, ping_ms };
+            if (isConnected) {
+                await this.mongooseConnection.connection.db.admin().ping();
             }
 
-            return { connected: false };
-        } catch {
-            return { connected: false };
+            return {
+                connected: isConnected,
+                ping_ms: isConnected ? Date.now() - start : undefined,
+            };
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : "Unknown error";
+            Logger.error(
+                `MongoDB ping failed: ${errorMessage}`,
+                error instanceof Error ? error.stack : undefined,
+                "AppController",
+            );
+            return { connected: false, error: errorMessage };
         }
     }
 }

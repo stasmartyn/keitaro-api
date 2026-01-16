@@ -7,7 +7,11 @@ import { Logger } from "../utils/logger";
 export class RedisService implements OnModuleDestroy {
     constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
-    async ping(): Promise<{ connected: boolean; ping_ms?: number }> {
+    async ping(): Promise<{
+        connected: boolean;
+        ping_ms?: number;
+        error?: string;
+    }> {
         try {
             const start = Date.now();
             const result = await this.redis.ping();
@@ -19,12 +23,14 @@ export class RedisService implements OnModuleDestroy {
 
             return { connected: false };
         } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : "Unknown error";
             Logger.error(
-                `Redis ping failed: ${error.message}`,
-                error.stack,
+                `Redis ping failed: ${errorMessage}`,
+                error instanceof Error ? error.stack : undefined,
                 "RedisService",
             );
-            return { connected: false };
+            return { connected: false, error: errorMessage };
         }
     }
 

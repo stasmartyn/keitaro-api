@@ -1,9 +1,11 @@
 import { Provider } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import Redis from "ioredis";
+import Redis, { RedisOptions } from "ioredis";
 import { Logger } from "../utils/logger";
 
 export const REDIS_CLIENT = "REDIS_CLIENT";
+
+const retryStrategy = (times: number) => Math.min(times * 50, 2000);
 
 export const redisProviders: Provider[] = [
     {
@@ -16,21 +18,15 @@ export const redisProviders: Provider[] = [
 
             if (redisConfig.url) {
                 redis = new Redis(redisConfig.url, {
-                    retryStrategy: (times) => {
-                        const delay = Math.min(times * 50, 2000);
-                        return delay;
-                    },
+                    retryStrategy,
                     maxRetriesPerRequest: 3,
                 });
             } else {
-                const options: any = {
+                const options: RedisOptions = {
                     host: redisConfig.host,
                     port: redisConfig.port,
                     db: redisConfig.db,
-                    retryStrategy: (times) => {
-                        const delay = Math.min(times * 50, 2000);
-                        return delay;
-                    },
+                    retryStrategy,
                     maxRetriesPerRequest: 3,
                 };
 
