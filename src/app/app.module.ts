@@ -14,6 +14,7 @@ import { OffersModule } from "../offers/offers.module";
 import { ReportModule } from "../report/report.module";
 import { FailoverModule } from "../failover/failover.module";
 import { RedisModule } from "../redis/redis.module";
+import { DatabaseModule } from "../database/database.module";
 
 @Module({
     imports: [
@@ -21,6 +22,7 @@ import { RedisModule } from "../redis/redis.module";
             isGlobal: true,
             load: [configuration],
         }),
+        DatabaseModule,
         RedisModule,
         AppsModule,
         GroupsModule,
