@@ -156,16 +156,40 @@ cp .env.example .env
 # Відредагуйте .env файл з вашими налаштуваннями
 ```
 
-4. **Запуск в development режимі:**
+4. **Запуск сервісів через docker-compose:**
+
+```bash
+# LOCAL (MongoDB + Redis, без паролів)
+docker-compose up -d
+
+# DEV (тільки Redis, з паролем)
+docker-compose -f docker-compose.dev.yml up -d
+
+# PROD (тільки Redis, з паролем)
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**Примітка:** MongoDB піднімається тільки локально. На DEV/PROD MongoDB буде managed service в інфраструктурі.
+
+5. **Запуск в development режимі:**
 
 ```bash
 npm run start:dev
 ```
 
-5. **Перевірка роботи:**
+6. **Перевірка роботи:**
 
 ```bash
+# Health check (перевірка Redis та сервісу)
+curl http://localhost:5005/api/health
+
+# Failover health check
 curl http://localhost:5005/api/failover/webhooks/health
+```
+
+**Примітка:** Для локального тестування можна вимкнути автентифікацію через env змінну:
+```env
+AUTH_ENABLED=false
 ```
 
 ### Production Запуск
@@ -252,10 +276,73 @@ CAMPAIGNS_PAGE_SIZE=100                  # Розмір сторінки при 
 
 #### Database
 
+**LOCAL (docker-compose.yml):**
 ```env
+MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro
 MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro
-MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro_dev
 ```
+
+**DEV/PROD:**
+```env
+# MongoDB піднімається окремо в інфраструктурі (managed service)
+# Вкажи реальний хост та credentials для твого середовища
+MONGO_DATABASE_URI_DEV=mongodb://dev_user:dev_password@dev-mongo-host:27017/keitaro_dev?authSource=admin
+MONGO_DATABASE_URI=mongodb://prod_user:prod_password@prod-mongo-cluster:27017/keitaro_prod?authSource=admin
+```
+
+#### Redis Configuration
+
+Redis використовується як backing store для BullMQ черг та кешування. Підтримує три режими: всі три (LOCAL/DEV/PROD) запускаються через docker-compose з різними портами та паролями.
+
+**Environment Variables (для всіх середовищ):**
+
+```env
+# Базові налаштування
+REDIS_HOST=localhost              # Хост Redis (для локального тестування: localhost, для реальних середовищ: service name або IP)
+REDIS_PORT=6379                   # Порт Redis (LOCAL: 6379, DEV: 6380, PROD: 6381)
+REDIS_DB=0                        # Номер бази даних (опціонально, за замовчуванням 0)
+
+# Безпека (для DEV/PROD)
+REDIS_PASSWORD=your_password      # Пароль (якщо потрібен)
+REDIS_TLS=false                  # Увімкнути TLS (true/false)
+REDIS_USERNAME=your_username     # Username (якщо потрібен)
+
+# Альтернатива: повний URL
+REDIS_URL=redis://username:password@host:port/db
+```
+
+**Режими роботи:**
+
+- **LOCAL**: Redis запускається через `docker-compose up -d`, підключення через `localhost:6379` (без пароля)
+- **DEV**: Redis запускається через `docker-compose -f docker-compose.dev.yml up -d`, підключення через `localhost:6380` (з паролем)
+- **PROD**: Redis запускається через `docker-compose -f docker-compose.prod.yml up -d`, підключення через `localhost:6381` (з паролем)
+
+**LOCAL (docker-compose.yml):**
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# Пароль не потрібен для локального Redis
+```
+
+**DEV (docker-compose.dev.yml):**
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6380
+REDIS_PASSWORD=dev_redis_password
+REDIS_TLS=false
+```
+
+**PROD (docker-compose.prod.yml):**
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6381
+REDIS_PASSWORD=prod_redis_secure_password_123
+REDIS_TLS=false
+```
+
+**Примітка:** 
+- Для локального тестування всі три compose файли використовують `localhost` з різними портами
+- В реальних DEV/PROD середовищах (якщо Redis не в docker-compose) заміни `localhost` на реальні хости Redis сервісів
 
 ## 📡 API Endpoints
 
@@ -267,11 +354,14 @@ http://localhost:5005/api
 
 ### Аутентифікація
 
-Всі endpoints потребують Bearer token в headers:
+Всі endpoints потребують Bearer token в headers (крім `/api/health`):
 
 ```bash
 Authorization: Bearer YOUR_AUTH_TOKEN
 ```
+
+**Винятки:**
+- `GET /api/health` - не потребує автентифікації (для моніторингу та health checks)
 
 ### Основні Групи Endpoints
 
