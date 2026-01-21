@@ -1019,15 +1019,40 @@ export class KeitaroService {
         skipped: number;
         stream?: any;
     }> {
+        const stage = this.configService.get("NODE_ENV");
+        const keitaroDomainDev = this.configService.get(
+            "keitaro.keitaroDomainDev",
+        );
+        const keitaroDomainProd = this.configService.get(
+            "keitaro.keitaroDomain",
+        );
+        const keitaroDomain =
+            stage === "development" ? keitaroDomainDev : keitaroDomainProd;
+
+        if (!keitaroDomain) {
+            throw new Error(
+                "Invalid URL: keitaroDomain is not configured. Please set KEITARO_DOMAIN or KEITARO_DOMAIN_DEV in .env",
+            );
+        }
+
         try {
             const streams = await this.getCampaignStreams(campaignId);
             const streamName = `Naming Share: ${naming}`;
             const targetCampaignIdString = targetCampaignId.toString();
-
             const existingStream = streams.find((s) => s.name === streamName);
 
             if (existingStream) {
+                Logger.info(
+                    `Stream "${streamName}" already exists (id: ${existingStream.id}, action_payload: ${existingStream.action_payload})`,
+                    undefined,
+                    "KeitaroService.shareNaming",
+                );
                 if (existingStream.action_payload === targetCampaignIdString) {
+                    Logger.info(
+                        `Stream "${streamName}" already configured correctly, skipping`,
+                        undefined,
+                        "KeitaroService.shareNaming",
+                    );
                     return {
                         created: 0,
                         updated: 0,
@@ -1035,12 +1060,22 @@ export class KeitaroService {
                         stream: existingStream,
                     };
                 } else {
+                    Logger.info(
+                        `Updating stream "${streamName}" action_payload from ${existingStream.action_payload} to ${targetCampaignIdString}`,
+                        undefined,
+                        "KeitaroService.shareNaming",
+                    );
                     const updatedStream = await this.updateStream(
                         existingStream.id,
                         {
                             action_payload: targetCampaignIdString,
                             state: "active",
                         },
+                    );
+                    Logger.info(
+                        `Stream "${streamName}" updated successfully`,
+                        { streamId: updatedStream?.id },
+                        "KeitaroService.shareNaming",
                     );
                     return {
                         created: 0,
@@ -1051,6 +1086,8 @@ export class KeitaroService {
                 }
             }
 
+            // Обчислюємо position після перевірки existing stream
+            // Це гарантує унікальність position при послідовній обробці
             const maxPosition = streams.reduce(
                 (max, stream) => Math.max(max, stream.position || 0),
                 0,
@@ -1079,9 +1116,22 @@ export class KeitaroService {
             };
 
             const url = this.buildUrl("admin_api/v1/streams");
+
+            Logger.info(
+                `Creating stream for naming "${naming}" in campaign ${campaignId}, target: ${targetCampaignId}`,
+                { streamData },
+                "KeitaroService.shareNaming",
+            );
+
             const response = await axios.post(url, streamData, {
                 headers: this.generateHeaders(),
             });
+
+            Logger.info(
+                `Stream created successfully for naming "${naming}"`,
+                { streamId: response.data?.id },
+                "KeitaroService.shareNaming",
+            );
 
             return {
                 created: 1,
@@ -1089,7 +1139,33 @@ export class KeitaroService {
                 skipped: 0,
                 stream: response.data,
             };
-        } catch (error) {
+        } catch (error: any) {
+            // Детальне логування помилок від Keitaro API
+            if (error?.response) {
+                const errorDetails = {
+                    status: error.response.status,
+                    statusText: error.response.statusText,
+                    data: error.response.data,
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    campaignId,
+                    naming,
+                    targetCampaignId,
+                };
+
+                Logger.error(
+                    `Failed to share naming "${naming}" to campaign ${targetCampaignId}: ${error.message || `Request failed with status code ${error.response.status}`}`,
+                    JSON.stringify(errorDetails, null, 2),
+                    "KeitaroService.shareNaming",
+                );
+            } else {
+                Logger.error(
+                    `Failed to share naming "${naming}" to campaign ${targetCampaignId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+                    error instanceof Error ? error.stack : undefined,
+                    "KeitaroService.shareNaming",
+                );
+            }
+
             this.handleKeitaroError(this.shareNaming.name, error);
         }
     }
@@ -1235,8 +1311,6 @@ export class KeitaroService {
                 },
             );
 
-            console.log("template", template);
-
             if (
                 !template ||
                 !Array.isArray(template) ||
@@ -1283,7 +1357,11 @@ export class KeitaroService {
             const defaultStream = stream.find((s) => s.name === "Default");
 
             if (!defaultStream) {
-                console.error("Default stream not found");
+                Logger.error(
+                    "Default stream not found",
+                    undefined,
+                    "KeitaroService.createRentCampaign",
+                );
                 return;
             }
 
@@ -1422,6 +1500,13 @@ export class KeitaroService {
             stage === "development"
                 ? this.configService.get("keitaro.keitaroDomainDev")
                 : this.configService.get("keitaro.keitaroDomain");
+
+        if (!keitaroDomain) {
+            throw new Error(
+                "Invalid URL: keitaroDomain is not configured. Please set KEITARO_DOMAIN or KEITARO_DOMAIN_DEV in .env",
+            );
+        }
+
         return `${keitaroDomain}/${path}`;
     }
 

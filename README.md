@@ -97,6 +97,15 @@ Keitaro Management API - це комплексне рішення для авт�
 - Доступ до всіх можливостей Keitaro через єдиний endpoint
 - Автоматична аутентифікація
 
+### 📬 Naming Sharing Queue
+
+- Асинхронна обробка поширення неймінгів між кампаніями
+- BullMQ черга з автоматичними retry (3 спроби, backoff 1h)
+- Batching по 10 items на job
+- Dead Letter Queue (DLQ) для failed jobs
+- WebSocket progress notifications
+- Bull Board для моніторингу (опціонально)
+
 ## 🏗️ Архітектура
 
 ### Модульна Структура
@@ -114,6 +123,8 @@ src/
 ├── groups/           # Управління групами
 ├── keitaro/          # Core Keitaro service + proxy
 ├── offers/           # Управління офферами
+├── queue/            # BullMQ черги (naming-sharing, DLQ)
+├── redis/            # Redis підключення для черг
 ├── report/           # Система звітів
 └── utils/            # Утиліти (logger, retry, validators)
 ```
@@ -159,17 +170,15 @@ cp .env.example .env
 4. **Запуск сервісів через docker-compose:**
 
 ```bash
-# LOCAL (MongoDB + Redis, без паролів)
+# LOCAL (для локальної розробки - без паролів)
 docker-compose up -d
 
-# DEV (тільки Redis, з паролем)
+# DEV (для dev середовища - з паролями)
 docker-compose -f docker-compose.dev.yml up -d
 
-# PROD (тільки Redis, з паролем)
+# PROD (для production - з безпечними паролями)
 docker-compose -f docker-compose.prod.yml up -d
 ```
-
-**Примітка:** MongoDB піднімається тільки локально. На DEV/PROD MongoDB буде managed service в інфраструктурі.
 
 5. **Запуск в development режимі:**
 
@@ -282,24 +291,27 @@ MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro
 MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro
 ```
 
-**DEV/PROD:**
+**DEV (docker-compose.dev.yml):**
 ```env
-# MongoDB піднімається окремо в інфраструктурі (managed service)
-# Вкажи реальний хост та credentials для твого середовища
-MONGO_DATABASE_URI_DEV=mongodb://dev_user:dev_password@dev-mongo-host:27017/keitaro_dev?authSource=admin
-MONGO_DATABASE_URI=mongodb://prod_user:prod_password@prod-mongo-cluster:27017/keitaro_prod?authSource=admin
+MONGO_DATABASE_URI_DEV=mongodb://dev_user:dev_password@localhost:27018/keitaro_dev?authSource=admin
+MONGO_DATABASE_URI=mongodb://dev_user:dev_password@localhost:27018/keitaro_dev?authSource=admin
+```
+
+**PROD (docker-compose.prod.yml):**
+```env
+MONGO_DATABASE_URI=mongodb://prod_user:prod_secure_password_123@localhost:27019/keitaro_prod?authSource=admin
 ```
 
 #### Redis Configuration
 
-Redis використовується як backing store для BullMQ черг та кешування. Підтримує три режими: всі три (LOCAL/DEV/PROD) запускаються через docker-compose з різними портами та паролями.
+Redis використовується як backing store для BullMQ черг та кешування. Підтримує три режими: LOCAL (docker-compose), DEV (dev-server), PROD (managed/cluster).
 
 **Environment Variables (для всіх середовищ):**
 
 ```env
 # Базові налаштування
-REDIS_HOST=localhost              # Хост Redis (для локального тестування: localhost, для реальних середовищ: service name або IP)
-REDIS_PORT=6379                   # Порт Redis (LOCAL: 6379, DEV: 6380, PROD: 6381)
+REDIS_HOST=localhost              # Хост Redis (для LOCAL: localhost, для DEV/PROD: service name або IP)
+REDIS_PORT=6379                   # Порт Redis
 REDIS_DB=0                        # Номер бази даних (опціонально, за замовчуванням 0)
 
 # Безпека (для DEV/PROD)
@@ -309,13 +321,16 @@ REDIS_USERNAME=your_username     # Username (якщо потрібен)
 
 # Альтернатива: повний URL
 REDIS_URL=redis://username:password@host:port/db
+
+# Bull Board (опціонально)
+ENABLE_BULL_BOARD=true
 ```
 
 **Режими роботи:**
 
-- **LOCAL**: Redis запускається через `docker-compose up -d`, підключення через `localhost:6379` (без пароля)
-- **DEV**: Redis запускається через `docker-compose -f docker-compose.dev.yml up -d`, підключення через `localhost:6380` (з паролем)
-- **PROD**: Redis запускається через `docker-compose -f docker-compose.prod.yml up -d`, підключення через `localhost:6381` (з паролем)
+- **LOCAL**: Redis запускається через `docker-compose up -d`, підключення через `localhost:6379`
+- **DEV**: Підключення до Redis в dev-інфраструктурі (контейнер/service), використовуй `REDIS_HOST=redis-service-name`
+- **PROD**: Підключення до production Redis (managed/cluster), з паролем/TLS якщо потрібно
 
 **LOCAL (docker-compose.yml):**
 ```env
@@ -340,9 +355,7 @@ REDIS_PASSWORD=prod_redis_secure_password_123
 REDIS_TLS=false
 ```
 
-**Примітка:** 
-- Для локального тестування всі три compose файли використовують `localhost` з різними портами
-- В реальних DEV/PROD середовищах (якщо Redis не в docker-compose) заміни `localhost` на реальні хости Redis сервісів
+**Примітка:** В реальних DEV/PROD середовищах заміни `localhost` на реальні хости Redis сервісів.
 
 ## 📡 API Endpoints
 
@@ -471,6 +484,44 @@ curl -X POST http://localhost:5005/api/failover/webhooks/health
 curl http://localhost:5005/api/keitaro/admin_api/v1/campaigns \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+#### 8️⃣ Naming Sharing Queue
+
+- `POST /api/queue/naming-sharing/add` - Додати job для поширення неймінгів
+- `DELETE /api/queue/naming-sharing/clear` - Очистити чергу
+- `GET /api/admin/queues` - Bull Board UI (якщо `ENABLE_BULL_BOARD=true`)
+
+**Payload:**
+```json
+{
+  "campaignId": 123,
+  "appId": 456,
+  "items": [
+    {"naming": "naming-1", "targetCampaignId": 789},
+    {"naming": "naming-2", "targetCampaignId": 789}
+  ]
+}
+```
+
+**Обмеження:** максимум 10 items на job
+
+**Приклад:**
+```bash
+curl -X POST http://localhost:5005/api/queue/naming-sharing/add \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "campaignId": 123,
+    "items": [
+      {"naming": "naming-1", "targetCampaignId": 789}
+    ]
+  }'
+```
+
+**WebSocket Progress:**
+- Namespace: `/naming-sharing-progress`
+- Event: `progress`
+- Дані: `jobId`, `total`, `processed`, `success`, `failed`, `batchNumber`, `totalBatches`
 
 ## ⚡ Failover System
 
@@ -704,6 +755,7 @@ MONGO_DATABASE_URI=mongodb://mongo:27017/keitaro
 - **[FAILOVER.md](./FAILOVER.md)** - Детальний опис failover системи з архітектурою
 - **[PREVIEW_GUIDE.md](./PREVIEW_GUIDE.md)** - Гайд по використанню preview mode
 - **[PROJECT.md](./PROJECT.md)** - Архітектура та структура проекту
+- **[QUEUE_USAGE.md](./QUEUE_USAGE.md)** - Інструкція по використанню Naming Sharing Queue
 
 ### Корисні Посилання
 

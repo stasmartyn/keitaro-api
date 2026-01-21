@@ -40,6 +40,7 @@ export default () => {
         REDIS_URL,
         TELEGRAM_BOT_TOKEN,
         TELEGRAM_CHAT_ID,
+        ENABLE_BULL_BOARD,
     } = process.env;
 
     return {
@@ -123,6 +124,9 @@ export default () => {
         telegram: {
             botToken: TELEGRAM_BOT_TOKEN,
             chatId: TELEGRAM_CHAT_ID,
+        },
+        bullBoard: {
+            enabled: ENABLE_BULL_BOARD === "true",
         },
     };
 };
