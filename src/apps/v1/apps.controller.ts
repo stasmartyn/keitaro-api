@@ -1,4 +1,5 @@
 import { Body, Delete, Get, Param, Post, Put } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 
 import { AppsService } from "./apps.service";
 import { CreateAppDto } from "../dto/create-app.dto";
@@ -117,6 +118,7 @@ export class AppsController {
     }
 
     @Post("share-naming")
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 запитів на хвилину
     async shareNaming(@Body() body: ShareNamingDto) {
         return this.appsService.shareNaming(body);
     }

@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { Worker, Job } from "bullmq";
 import Redis from "ioredis";
-import { ConfigService } from "@nestjs/config";
 import { QueueService } from "../queue.service";
 import { RedisService } from "../../redis/redis.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
@@ -14,19 +13,9 @@ import {
     NamingSharingJobData,
     NamingItem,
     BATCH_SIZE,
+    BatchResult,
 } from "../queues/naming-sharing.types";
 import { NamingSharingProgressGateway } from "../gateways/naming-sharing-progress.gateway";
-
-interface BatchResult {
-    success: number;
-    failed: number;
-    errors: Array<{
-        naming: string;
-        error: string;
-        campaignId: number;
-        targetCampaignId: number;
-    }>;
-}
 
 @Injectable()
 export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
@@ -39,38 +28,12 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         private readonly redisService: RedisService,
         private readonly keitaroService: KeitaroService,
         private readonly progressGateway: NamingSharingProgressGateway,
-        private readonly configService: ConfigService,
     ) {}
 
     async onModuleInit() {
-        const redisConfig = this.configService.get("redis");
-
-        if (redisConfig.url) {
-            this.workerRedisClient = new Redis(redisConfig.url, {
-                maxRetriesPerRequest: null,
-            });
-        } else {
-            const options: any = {
-                host: redisConfig.host,
-                port: redisConfig.port,
-                db: redisConfig.db,
-                maxRetriesPerRequest: null,
-            };
-
-            if (redisConfig.password) {
-                options.password = redisConfig.password;
-            }
-
-            if (redisConfig.username) {
-                options.username = redisConfig.username;
-            }
-
-            if (redisConfig.tls) {
-                options.tls = {};
-            }
-
-            this.workerRedisClient = new Redis(options);
-        }
+        // Використовуємо RedisService для створення Worker client
+        // Worker вимагає maxRetriesPerRequest: null для blocking операцій
+        this.workerRedisClient = this.redisService.getWorkerClient();
 
         this.worker = new Worker(
             NAMING_SHARING_QUEUE_NAME,
@@ -86,10 +49,21 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                             "NamingSharingWorker",
                         );
                     } catch {
-                        // Якщо Logger не може записати, використовуємо console.error як fallback
-                        console.error(
-                            `[NamingSharingWorker] Failed to process job ${job.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-                        );
+                        // Якщо Logger не може записати, спробуємо ще раз через Logger
+                        try {
+                            Logger.error(
+                                `[NamingSharingWorker] Failed to process job ${job.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+                                error instanceof Error
+                                    ? error.stack
+                                    : undefined,
+                                "NamingSharingWorker",
+                            );
+                        } catch {
+                            // Якщо і це не спрацювало, використовуємо console.error як останній fallback
+                            console.error(
+                                `[NamingSharingWorker] Failed to process job ${job.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+                            );
+                        }
                     }
                     throw error; // Повторно кидаємо помилку для BullMQ retry механізму
                 }
@@ -239,10 +213,19 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                             "NamingSharingWorker",
                         );
                     } catch {
-                        // Fallback якщо Logger не може записати
-                        console.error(
-                            `[NamingSharingWorker] Failed to share naming "${error.naming}" for campaign ${error.campaignId}: ${error.error}`,
-                        );
+                        // Якщо Logger не може записати, спробуємо ще раз через Logger
+                        try {
+                            Logger.error(
+                                `[NamingSharingWorker] Failed to share naming "${error.naming}" for campaign ${error.campaignId}: ${error.error}`,
+                                undefined,
+                                "NamingSharingWorker",
+                            );
+                        } catch {
+                            // Якщо і це не спрацювало, використовуємо console.error як останній fallback
+                            console.error(
+                                `[NamingSharingWorker] Failed to share naming "${error.naming}" for campaign ${error.campaignId}: ${error.error}`,
+                            );
+                        }
                     }
                 }
             }
@@ -257,10 +240,19 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                     "NamingSharingWorker",
                 );
             } catch {
-                // Fallback якщо Logger не може записати
-                console.error(
-                    `[NamingSharingWorker] Job ${job.id} completed with errors: ${errorMessage}`,
-                );
+                // Якщо Logger не може записати, спробуємо ще раз через Logger
+                try {
+                    Logger.error(
+                        `[NamingSharingWorker] Job ${job.id} completed with errors: ${errorMessage}`,
+                        undefined,
+                        "NamingSharingWorker",
+                    );
+                } catch {
+                    // Якщо і це не спрацювало, використовуємо console.error як останній fallback
+                    console.error(
+                        `[NamingSharingWorker] Job ${job.id} completed with errors: ${errorMessage}`,
+                    );
+                }
             }
             throw new Error(errorMessage);
         }

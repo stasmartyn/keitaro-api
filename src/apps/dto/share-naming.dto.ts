@@ -1,16 +1,34 @@
-import { IsNumber, IsOptional, IsString } from "class-validator";
+import {
+    IsNumber,
+    IsOptional,
+    IsArray,
+    ValidateNested,
+    ArrayMaxSize,
+    ArrayMinSize,
+    IsString,
+} from "class-validator";
+import { Type } from "class-transformer";
+
+export class NamingItemDto {
+    @IsString()
+    naming: string;
+
+    @IsNumber()
+    targetCampaignId: number;
+}
 
 export class ShareNamingDto {
     @IsNumber()
     campaignId: number;
 
-    @IsString()
-    naming: string;
-
     @IsOptional()
     @IsNumber()
-    keitaroCampaign?: number;
+    appId?: number;
 
-    @IsNumber()
-    orgCampaignId: number;
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => NamingItemDto)
+    @ArrayMinSize(1, { message: "At least 1 naming item is required" })
+    @ArrayMaxSize(10, { message: "Maximum 10 naming items allowed per batch" })
+    items: NamingItemDto[];
 }

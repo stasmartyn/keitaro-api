@@ -3,17 +3,7 @@ import { QueueService } from "../queue.service";
 import { Job } from "bullmq";
 import { Logger } from "../../utils/logger";
 import { NAMING_SHARING_QUEUE_NAME } from "../queues/naming-sharing.queue";
-
-export interface DlqJobData {
-    originalJobId: string;
-    originalJobName: string;
-    originalData: any;
-    failedReason: string;
-    failedStack?: string;
-    attemptsMade: number;
-    timestamp: string;
-    metadata?: Record<string, any>;
-}
+import { DlqJobData } from "../queues/naming-sharing.types";
 
 @Injectable()
 export class NamingSharingDlqService implements OnModuleInit, OnModuleDestroy {
@@ -23,6 +13,8 @@ export class NamingSharingDlqService implements OnModuleInit, OnModuleDestroy {
         const mainQueue = this.queueService.getNamingSharingQueue();
 
         // Підписуємося на подію 'failed' - коли job остаточно впав
+        // Використовуємо type assertion, бо BullMQ TypeScript типи не повністю підтримують всі події
+        // Альтернатива: використати QueueEvents API, але це складніше для нашої задачі
         mainQueue.on(
             "failed" as any,
             async (job: Job<any, any, string>, error: Error) => {

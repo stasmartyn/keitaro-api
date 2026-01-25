@@ -7,6 +7,7 @@ import {
     Campaign,
     Domain,
     Stream,
+    RegularStream,
     ReportPayload,
     ReportResponse,
 } from "./interfaces/failover.interface";
@@ -1017,7 +1018,7 @@ export class KeitaroService {
         created: number;
         updated: number;
         skipped: number;
-        stream?: any;
+        stream?: RegularStream;
     }> {
         const stage = this.configService.get("NODE_ENV");
         const keitaroDomainDev = this.configService.get(
@@ -1039,7 +1040,12 @@ export class KeitaroService {
             const streams = await this.getCampaignStreams(campaignId);
             const streamName = `Naming Share: ${naming}`;
             const targetCampaignIdString = targetCampaignId.toString();
-            const existingStream = streams.find((s) => s.name === streamName);
+
+            // find() достатньо ефективний для одного пошуку (5-10k записів за мілісекунди)
+            // Map був би корисний тільки якщо потрібно багато разів працювати з даними
+            const existingStream = streams.find(
+                (s) => s.name === streamName,
+            ) as RegularStream | undefined;
 
             if (existingStream) {
                 Logger.info(
@@ -1081,7 +1087,7 @@ export class KeitaroService {
                         created: 0,
                         updated: 1,
                         skipped: 0,
-                        stream: updatedStream,
+                        stream: updatedStream as RegularStream,
                     };
                 }
             }
@@ -1137,7 +1143,7 @@ export class KeitaroService {
                 created: 1,
                 updated: 0,
                 skipped: 0,
-                stream: response.data,
+                stream: response.data as RegularStream,
             };
         } catch (error: any) {
             // Детальне логування помилок від Keitaro API

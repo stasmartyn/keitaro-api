@@ -15,3 +15,44 @@ export interface NamingSharingJobData {
 }
 
 export const BATCH_SIZE = 10;
+
+/**
+ * WebSocket progress notification для naming-sharing
+ */
+export interface NamingSharingProgress {
+    jobId: string;
+    total: number;
+    processed: number;
+    success: number;
+    failed: number;
+    batchNumber: number;
+    totalBatches: number;
+}
+
+/**
+ * Результат обробки батча naming items
+ */
+export interface BatchResult {
+    success: number;
+    failed: number;
+    errors: Array<{
+        naming: string;
+        error: string;
+        campaignId: number;
+        targetCampaignId: number;
+    }>;
+}
+
+/**
+ * Дані для Dead Letter Queue (DLQ)
+ */
+export interface DlqJobData {
+    originalJobId: string;
+    originalJobName: string;
+    originalData: any;
+    failedReason: string;
+    failedStack?: string;
+    attemptsMade: number;
+    timestamp: string;
+    metadata?: Record<string, any>;
+}

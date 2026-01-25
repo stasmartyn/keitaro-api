@@ -97,13 +97,13 @@ Keitaro Management API - це комплексне рішення для авт�
 - Доступ до всіх можливостей Keitaro через єдиний endpoint
 - Автоматична аутентифікація
 
-### 📬 Naming Sharing Queue
+### 📦 Naming Sharing Queue (BullMQ)
 
-- Асинхронна обробка поширення неймінгів між кампаніями
-- BullMQ черга з автоматичними retry (3 спроби, backoff 1h)
-- Batching по 10 items на job
+- Асинхронна обробка naming sharing через BullMQ чергу
+- Batching до 10 namings за один запит
+- Автоматичний retry (3 спроби з backoff 1 година)
 - Dead Letter Queue (DLQ) для failed jobs
-- WebSocket progress notifications
+- WebSocket progress notifications в real-time
 - Bull Board для моніторингу (опціонально)
 
 ## 🏗️ Архітектура
@@ -123,8 +123,8 @@ src/
 ├── groups/           # Управління групами
 ├── keitaro/          # Core Keitaro service + proxy
 ├── offers/           # Управління офферами
-├── queue/            # BullMQ черги (naming-sharing, DLQ)
-├── redis/            # Redis підключення для черг
+├── queue/            # BullMQ черги (naming-sharing queue)
+├── redis/            # Redis підключення
 ├── report/           # Система звітів
 └── utils/            # Утиліти (logger, retry, validators)
 ```
@@ -170,15 +170,17 @@ cp .env.example .env
 4. **Запуск сервісів через docker-compose:**
 
 ```bash
-# LOCAL (для локальної розробки - без паролів)
+# LOCAL (MongoDB + Redis, без паролів)
 docker-compose up -d
 
-# DEV (для dev середовища - з паролями)
+# DEV (тільки Redis, з паролем)
 docker-compose -f docker-compose.dev.yml up -d
 
-# PROD (для production - з безпечними паролями)
+# PROD (тільки Redis, з паролем)
 docker-compose -f docker-compose.prod.yml up -d
 ```
+
+**Примітка:** MongoDB піднімається тільки локально. На DEV/PROD MongoDB буде managed service в інфраструктурі.
 
 5. **Запуск в development режимі:**
 
@@ -194,11 +196,6 @@ curl http://localhost:5005/api/health
 
 # Failover health check
 curl http://localhost:5005/api/failover/webhooks/health
-```
-
-**Примітка:** Для локального тестування можна вимкнути автентифікацію через env змінну:
-```env
-AUTH_ENABLED=false
 ```
 
 ### Production Запуск
@@ -291,27 +288,24 @@ MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro
 MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro
 ```
 
-**DEV (docker-compose.dev.yml):**
+**DEV/PROD:**
 ```env
-MONGO_DATABASE_URI_DEV=mongodb://dev_user:dev_password@localhost:27018/keitaro_dev?authSource=admin
-MONGO_DATABASE_URI=mongodb://dev_user:dev_password@localhost:27018/keitaro_dev?authSource=admin
-```
-
-**PROD (docker-compose.prod.yml):**
-```env
-MONGO_DATABASE_URI=mongodb://prod_user:prod_secure_password_123@localhost:27019/keitaro_prod?authSource=admin
+# MongoDB піднімається окремо в інфраструктурі (managed service)
+# Вкажи реальний хост та credentials для твого середовища
+MONGO_DATABASE_URI_DEV=mongodb://dev_user:dev_password@dev-mongo-host:27017/keitaro_dev?authSource=admin
+MONGO_DATABASE_URI=mongodb://prod_user:prod_password@prod-mongo-cluster:27017/keitaro_prod?authSource=admin
 ```
 
 #### Redis Configuration
 
-Redis використовується як backing store для BullMQ черг та кешування. Підтримує три режими: LOCAL (docker-compose), DEV (dev-server), PROD (managed/cluster).
+Redis використовується як backing store для BullMQ черг та кешування. Підтримує три режими: всі три (LOCAL/DEV/PROD) запускаються через docker-compose з різними портами та паролями.
 
 **Environment Variables (для всіх середовищ):**
 
 ```env
 # Базові налаштування
-REDIS_HOST=localhost              # Хост Redis (для LOCAL: localhost, для DEV/PROD: service name або IP)
-REDIS_PORT=6379                   # Порт Redis
+REDIS_HOST=localhost              # Хост Redis (для локального тестування: localhost, для реальних середовищ: service name або IP)
+REDIS_PORT=6379                   # Порт Redis (LOCAL: 6379, DEV: 6380, PROD: 6381)
 REDIS_DB=0                        # Номер бази даних (опціонально, за замовчуванням 0)
 
 # Безпека (для DEV/PROD)
@@ -321,16 +315,13 @@ REDIS_USERNAME=your_username     # Username (якщо потрібен)
 
 # Альтернатива: повний URL
 REDIS_URL=redis://username:password@host:port/db
-
-# Bull Board (опціонально)
-ENABLE_BULL_BOARD=true
 ```
 
 **Режими роботи:**
 
-- **LOCAL**: Redis запускається через `docker-compose up -d`, підключення через `localhost:6379`
-- **DEV**: Підключення до Redis в dev-інфраструктурі (контейнер/service), використовуй `REDIS_HOST=redis-service-name`
-- **PROD**: Підключення до production Redis (managed/cluster), з паролем/TLS якщо потрібно
+- **LOCAL**: Redis запускається через `docker-compose up -d`, підключення через `localhost:6379` (без пароля)
+- **DEV**: Redis запускається через `docker-compose -f docker-compose.dev.yml up -d`, підключення через `localhost:6380` (з паролем)
+- **PROD**: Redis запускається через `docker-compose -f docker-compose.prod.yml up -d`, підключення через `localhost:6381` (з паролем)
 
 **LOCAL (docker-compose.yml):**
 ```env
@@ -355,7 +346,17 @@ REDIS_PASSWORD=prod_redis_secure_password_123
 REDIS_TLS=false
 ```
 
-**Примітка:** В реальних DEV/PROD середовищах заміни `localhost` на реальні хости Redis сервісів.
+**Примітка:** 
+- Для локального тестування всі три compose файли використовують `localhost` з різними портами
+- В реальних DEV/PROD середовищах (якщо Redis не в docker-compose) заміни `localhost` на реальні хости Redis сервісів
+
+#### Bull Board (опціонально)
+
+```env
+ENABLE_BULL_BOARD=true  # Увімкнути Bull Board UI для моніторингу черг
+```
+
+Якщо увімкнено, доступний UI за адресою: `http://localhost:5005/api/admin/queues`
 
 ## 📡 API Endpoints
 
@@ -367,7 +368,7 @@ http://localhost:5005/api
 
 ### Аутентифікація
 
-Всі endpoints потребують Bearer token в headers (крім `/api/health`):
+Всі endpoints потребують Bearer token в headers:
 
 ```bash
 Authorization: Bearer YOUR_AUTH_TOKEN
@@ -385,6 +386,7 @@ Authorization: Bearer YOUR_AUTH_TOKEN
 - `POST /api/apps/create` - Створення нового застосунку
 - `POST /api/apps/sync` - Синхронізація застосунку
 - `POST /api/apps/copy-campaign` - Копіювання кампанії
+- `POST /api/v1/apps/share-naming` - Naming sharing (асинхронно через BullMQ, з batching)
 
 **v2 Endpoints (розширений функціонал):**
 
@@ -487,41 +489,56 @@ curl http://localhost:5005/api/keitaro/admin_api/v1/campaigns \
 
 #### 8️⃣ Naming Sharing Queue
 
-- `POST /api/queue/naming-sharing/add` - Додати job для поширення неймінгів
-- `DELETE /api/queue/naming-sharing/clear` - Очистити чергу
-- `GET /api/admin/queues` - Bull Board UI (якщо `ENABLE_BULL_BOARD=true`)
+**Endpoint:** `POST /api/v1/apps/share-naming`
 
-**Payload:**
-```json
-{
-  "campaignId": 123,
-  "appId": 456,
-  "items": [
-    {"naming": "naming-1", "targetCampaignId": 789},
-    {"naming": "naming-2", "targetCampaignId": 789}
-  ]
-}
-```
+**Новий формат (з batching):**
 
-**Обмеження:** максимум 10 items на job
-
-**Приклад:**
 ```bash
-curl -X POST http://localhost:5005/api/queue/naming-sharing/add \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+curl -X POST http://localhost:5005/api/v1/apps/share-naming \
   -H "Content-Type: application/json" \
   -d '{
-    "campaignId": 123,
+    "campaignId": 129,
+    "appId": 456,
     "items": [
-      {"naming": "naming-1", "targetCampaignId": 789}
+      {"naming": "naming-1", "targetCampaignId": 22},
+      {"naming": "naming-2", "targetCampaignId": 44},
+      {"naming": "naming-3", "targetCampaignId": 51}
     ]
   }'
 ```
 
-**WebSocket Progress:**
-- Namespace: `/naming-sharing-progress`
-- Event: `progress`
-- Дані: `jobId`, `total`, `processed`, `success`, `failed`, `batchNumber`, `totalBatches`
+**Response (асинхронний):**
+
+```json
+{
+  "success": true,
+  "jobId": "1",
+  "queue": "naming-sharing",
+  "itemsCount": 3,
+  "message": "Naming sharing job added to queue successfully"
+}
+```
+
+**Особливості:**
+
+- ✅ Batching: до 10 namings за один запит
+- ✅ Асинхронна обробка через BullMQ
+- ✅ WebSocket progress: `/naming-sharing-progress` namespace
+- ✅ Автоматичний retry: 3 спроби з backoff 1 година
+- ✅ DLQ: failed jobs після 3 спроб
+- ✅ Bull Board: `/api/admin/queues` (якщо `ENABLE_BULL_BOARD=true`)
+
+**Примітка:** 
+- Endpoint залишився той самий (`/api/v1/apps/share-naming`), але тепер працює асинхронно через BullMQ чергу
+- Старий формат (тільки `campaignId`) більше не підтримується - потрібно передавати `items[]` масив
+- Frontend код не потребує змін - endpoint той самий, тільки payload змінився
+
+**Queue Management:**
+
+```bash
+# Очищення черги
+curl -X DELETE http://localhost:5005/api/queue/naming-sharing/clear
+```
 
 ## ⚡ Failover System
 
@@ -755,7 +772,6 @@ MONGO_DATABASE_URI=mongodb://mongo:27017/keitaro
 - **[FAILOVER.md](./FAILOVER.md)** - Детальний опис failover системи з архітектурою
 - **[PREVIEW_GUIDE.md](./PREVIEW_GUIDE.md)** - Гайд по використанню preview mode
 - **[PROJECT.md](./PROJECT.md)** - Архітектура та структура проекту
-- **[QUEUE_USAGE.md](./QUEUE_USAGE.md)** - Інструкція по використанню Naming Sharing Queue
 
 ### Корисні Посилання
 

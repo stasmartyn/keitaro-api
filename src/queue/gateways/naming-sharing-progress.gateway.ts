@@ -7,16 +7,7 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Logger } from "../../utils/logger";
-
-export interface NamingSharingProgress {
-    jobId: string;
-    total: number;
-    processed: number;
-    success: number;
-    failed: number;
-    batchNumber: number;
-    totalBatches: number;
-}
+import { NamingSharingProgress } from "../queues/naming-sharing.types";
 
 @WebSocketGateway({
     namespace: "/naming-sharing-progress",
