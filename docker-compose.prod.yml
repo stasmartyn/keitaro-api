@@ -1,21 +1,41 @@
 version: "3.8"
 
 services:
-    redis:
-        image: redis:7-alpine
-        container_name: keitaro_api_redis_prod
+    keitaro_api_ts:
+        image: 857235393156.dkr.ecr.eu-central-1.amazonaws.com/keitaro_api_ts:prod
+        container_name: keitaro_api_ts_prod
         restart: unless-stopped
         ports:
-            - "6381:6379"
-        command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+            - "5006:5006"
+        env_file:
+            - .env.prod
+        networks:
+            - keitaro_api_ts_prod_network
+        depends_on:
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "wget", "-q", "--spider", "http://localhost:5006/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    redis:
+        image: redis:7-alpine
+        container_name: keitaro_api_ts_redis_prod
+        restart: unless-stopped
+        ports:
+            - "6680:6379"
+        command: redis-server --requirepass ${REDIS_PASSWORD_PROD} --appendonly yes
         environment:
-            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - REDIS_PASSWORD=${REDIS_PASSWORD_PROD}
         volumes:
             - redis_prod_data:/data
         networks:
-            - keitaro_prod_network
+            - keitaro_api_ts_prod_network
         healthcheck:
-            test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+            test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD_PROD}", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -25,5 +45,5 @@ volumes:
         driver: local
 
 networks:
-    keitaro_prod_network:
+    keitaro_api_ts_prod_network:
         driver: bridge
