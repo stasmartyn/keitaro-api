@@ -32,6 +32,31 @@ export interface Stream {
     [key: string]: any;
 }
 
+/**
+ * Regular stream для naming-sharing (type: "regular", schema: "action")
+ * Не містить forced streams, тому простіше типізувати
+ */
+export interface RegularStream {
+    id: number;
+    name: string;
+    type: "regular";
+    position?: number;
+    state: string;
+    weight: number;
+    action_type: "campaign";
+    action_payload: string;
+    schema: "action";
+    filters: Array<{
+        name: string;
+        mode: "accept" | "reject";
+        payload: string[] | null;
+    }>;
+    offers: [];
+    landings: [];
+    campaign_id?: number;
+    [key: string]: any;
+}
+
 export interface Landing {
     landing_id: number;
     [key: string]: any;

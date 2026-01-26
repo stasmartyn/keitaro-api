@@ -15,6 +15,7 @@ import { ReportModule } from "../report/report.module";
 import { FailoverModule } from "../failover/failover.module";
 import { RedisModule } from "../redis/redis.module";
 import { DatabaseModule } from "../database/database.module";
+import { QueueModule } from "../queue/queue.module";
 
 @Module({
     imports: [
@@ -24,6 +25,7 @@ import { DatabaseModule } from "../database/database.module";
         }),
         DatabaseModule,
         RedisModule,
+        QueueModule,
         AppsModule,
         GroupsModule,
         DomainsModule,

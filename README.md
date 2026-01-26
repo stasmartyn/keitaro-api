@@ -97,6 +97,15 @@ Keitaro Management API - це комплексне рішення для авт�
 - Доступ до всіх можливостей Keitaro через єдиний endpoint
 - Автоматична аутентифікація
 
+### 📦 Naming Sharing Queue (BullMQ)
+
+- Асинхронна обробка naming sharing через BullMQ чергу
+- Batching до 10 namings за один запит
+- Автоматичний retry (3 спроби з backoff 1 година)
+- Dead Letter Queue (DLQ) для failed jobs
+- WebSocket progress notifications в real-time
+- Bull Board для моніторингу (опціонально)
+
 ## 🏗️ Архітектура
 
 ### Модульна Структура
@@ -114,6 +123,8 @@ src/
 ├── groups/           # Управління групами
 ├── keitaro/          # Core Keitaro service + proxy
 ├── offers/           # Управління офферами
+├── queue/            # BullMQ черги (naming-sharing queue)
+├── redis/            # Redis підключення
 ├── report/           # Система звітів
 └── utils/            # Утиліти (logger, retry, validators)
 ```
@@ -185,11 +196,6 @@ curl http://localhost:5005/api/health
 
 # Failover health check
 curl http://localhost:5005/api/failover/webhooks/health
-```
-
-**Примітка:** Для локального тестування можна вимкнути автентифікацію через env змінну:
-```env
-AUTH_ENABLED=false
 ```
 
 ### Production Запуск
@@ -344,6 +350,14 @@ REDIS_TLS=false
 - Для локального тестування всі три compose файли використовують `localhost` з різними портами
 - В реальних DEV/PROD середовищах (якщо Redis не в docker-compose) заміни `localhost` на реальні хости Redis сервісів
 
+#### Bull Board (опціонально)
+
+```env
+ENABLE_BULL_BOARD=true  # Увімкнути Bull Board UI для моніторингу черг
+```
+
+Якщо увімкнено, доступний UI за адресою: `http://localhost:5005/api/admin/queues`
+
 ## 📡 API Endpoints
 
 ### Base URL
@@ -354,7 +368,7 @@ http://localhost:5005/api
 
 ### Аутентифікація
 
-Всі endpoints потребують Bearer token в headers (крім `/api/health`):
+Всі endpoints потребують Bearer token в headers:
 
 ```bash
 Authorization: Bearer YOUR_AUTH_TOKEN
@@ -372,6 +386,7 @@ Authorization: Bearer YOUR_AUTH_TOKEN
 - `POST /api/apps/create` - Створення нового застосунку
 - `POST /api/apps/sync` - Синхронізація застосунку
 - `POST /api/apps/copy-campaign` - Копіювання кампанії
+- `POST /api/v1/apps/share-naming` - Naming sharing (асинхронно через BullMQ, з batching)
 
 **v2 Endpoints (розширений функціонал):**
 
@@ -470,6 +485,59 @@ curl -X POST http://localhost:5005/api/failover/webhooks/health
 # Прямий доступ до Keitaro API через proxy
 curl http://localhost:5005/api/keitaro/admin_api/v1/campaigns \
   -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+#### 8️⃣ Naming Sharing Queue
+
+**Endpoint:** `POST /api/v1/apps/share-naming`
+
+**Новий формат (з batching):**
+
+```bash
+curl -X POST http://localhost:5005/api/v1/apps/share-naming \
+  -H "Content-Type: application/json" \
+  -d '{
+    "campaignId": 129,
+    "appId": 456,
+    "items": [
+      {"naming": "naming-1", "targetCampaignId": 22},
+      {"naming": "naming-2", "targetCampaignId": 44},
+      {"naming": "naming-3", "targetCampaignId": 51}
+    ]
+  }'
+```
+
+**Response (асинхронний):**
+
+```json
+{
+  "success": true,
+  "jobId": "1",
+  "queue": "naming-sharing",
+  "itemsCount": 3,
+  "message": "Naming sharing job added to queue successfully"
+}
+```
+
+**Особливості:**
+
+- ✅ Batching: до 10 namings за один запит
+- ✅ Асинхронна обробка через BullMQ
+- ✅ WebSocket progress: `/naming-sharing-progress` namespace
+- ✅ Автоматичний retry: 3 спроби з backoff 1 година
+- ✅ DLQ: failed jobs після 3 спроб
+- ✅ Bull Board: `/api/admin/queues` (якщо `ENABLE_BULL_BOARD=true`)
+
+**Примітка:** 
+- Endpoint залишився той самий (`/api/v1/apps/share-naming`), але тепер працює асинхронно через BullMQ чергу
+- Старий формат (тільки `campaignId`) більше не підтримується - потрібно передавати `items[]` масив
+- Frontend код не потребує змін - endpoint той самий, тільки payload змінився
+
+**Queue Management:**
+
+```bash
+# Очищення черги
+curl -X DELETE http://localhost:5005/api/queue/naming-sharing/clear
 ```
 
 ## ⚡ Failover System

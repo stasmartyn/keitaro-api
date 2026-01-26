@@ -1,11 +1,15 @@
 import { Injectable, Inject, OnModuleDestroy } from "@nestjs/common";
 import Redis from "ioredis";
+import { ConfigService } from "@nestjs/config";
 import { REDIS_CLIENT } from "./redis.providers";
 import { Logger } from "../utils/logger";
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
-    constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+    constructor(
+        @Inject(REDIS_CLIENT) private readonly redis: Redis,
+        private readonly configService: ConfigService,
+    ) {}
 
     async ping(): Promise<{
         connected: boolean;
@@ -36,6 +40,41 @@ export class RedisService implements OnModuleDestroy {
 
     getClient(): Redis {
         return this.redis;
+    }
+
+    /**
+     * Створює окремий Redis client для BullMQ Worker
+     * Worker вимагає maxRetriesPerRequest: null для blocking операцій
+     */
+    getWorkerClient(): Redis {
+        const redisConfig = this.configService.get("redis");
+
+        if (redisConfig.url) {
+            return new Redis(redisConfig.url, {
+                maxRetriesPerRequest: null,
+            });
+        }
+
+        const options: any = {
+            host: redisConfig.host,
+            port: redisConfig.port,
+            db: redisConfig.db,
+            maxRetriesPerRequest: null,
+        };
+
+        if (redisConfig.password) {
+            options.password = redisConfig.password;
+        }
+
+        if (redisConfig.username) {
+            options.username = redisConfig.username;
+        }
+
+        if (redisConfig.tls) {
+            options.tls = {};
+        }
+
+        return new Redis(options);
     }
 
     async onModuleDestroy() {
