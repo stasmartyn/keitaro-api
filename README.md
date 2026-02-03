@@ -283,12 +283,14 @@ CAMPAIGNS_PAGE_SIZE=100                  # Розмір сторінки при 
 #### Database
 
 **LOCAL (docker-compose.yml):**
+
 ```env
 MONGO_DATABASE_URI_DEV=mongodb://localhost:27017/keitaro
 MONGO_DATABASE_URI=mongodb://localhost:27017/keitaro
 ```
 
 **DEV/PROD:**
+
 ```env
 # MongoDB піднімається окремо в інфраструктурі (managed service)
 # Вкажи реальний хост та credentials для твого середовища
@@ -324,6 +326,7 @@ REDIS_URL=redis://username:password@host:port/db
 - **PROD**: Redis запускається через `docker-compose -f docker-compose.prod.yml up -d`, підключення через `localhost:6381` (з паролем)
 
 **LOCAL (docker-compose.yml):**
+
 ```env
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -331,6 +334,7 @@ REDIS_PORT=6379
 ```
 
 **DEV (docker-compose.dev.yml):**
+
 ```env
 REDIS_HOST=localhost
 REDIS_PORT=6380
@@ -339,6 +343,7 @@ REDIS_TLS=false
 ```
 
 **PROD (docker-compose.prod.yml):**
+
 ```env
 REDIS_HOST=localhost
 REDIS_PORT=6381
@@ -346,7 +351,8 @@ REDIS_PASSWORD=prod_redis_secure_password_123
 REDIS_TLS=false
 ```
 
-**Примітка:** 
+**Примітка:**
+
 - Для локального тестування всі три compose файли використовують `localhost` з різними портами
 - В реальних DEV/PROD середовищах (якщо Redis не в docker-compose) заміни `localhost` на реальні хости Redis сервісів
 
@@ -375,6 +381,7 @@ Authorization: Bearer YOUR_AUTH_TOKEN
 ```
 
 **Винятки:**
+
 - `GET /api/health` - не потребує автентифікації (для моніторингу та health checks)
 
 ### Основні Групи Endpoints
@@ -511,11 +518,11 @@ curl -X POST http://localhost:5005/api/v1/apps/share-naming \
 
 ```json
 {
-  "success": true,
-  "jobId": "1",
-  "queue": "naming-sharing",
-  "itemsCount": 3,
-  "message": "Naming sharing job added to queue successfully"
+    "success": true,
+    "jobId": "1",
+    "queue": "naming-sharing",
+    "itemsCount": 3,
+    "message": "Naming sharing job added to queue successfully"
 }
 ```
 
@@ -528,7 +535,8 @@ curl -X POST http://localhost:5005/api/v1/apps/share-naming \
 - ✅ DLQ: failed jobs після 3 спроб
 - ✅ Bull Board: `/api/admin/queues` (якщо `ENABLE_BULL_BOARD=true`)
 
-**Примітка:** 
+**Примітка:**
+
 - Endpoint залишився той самий (`/api/v1/apps/share-naming`), але тепер працює асинхронно через BullMQ чергу
 - Старий формат (тільки `campaignId`) більше не підтримується - потрібно передавати `items[]` масив
 - Frontend код не потребує змін - endpoint той самий, тільки payload змінився
