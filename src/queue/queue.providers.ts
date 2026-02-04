@@ -1,5 +1,5 @@
 import { Provider } from "@nestjs/common";
-import { RedisService } from "../redis/redis.service";
+import { ConfigService } from "@nestjs/config";
 import { Queue, QueueOptions } from "bullmq";
 import { Logger } from "../utils/logger";
 
@@ -12,9 +12,25 @@ export interface QueueFactory {
 export const queueProviders: Provider[] = [
     {
         provide: QUEUE_FACTORY,
-        inject: [RedisService],
-        useFactory: (redisService: RedisService): QueueFactory => {
-            const redisClient = redisService.getClient();
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService): QueueFactory => {
+            const redisConfig = configService.get("redis");
+
+            // BullMQ вимагає connection options, не Redis клієнт
+            const connectionOptions = redisConfig.url
+                ? { url: redisConfig.url }
+                : {
+                      host: redisConfig.host,
+                      port: redisConfig.port,
+                      db: redisConfig.db,
+                      ...(redisConfig.password && {
+                          password: redisConfig.password,
+                      }),
+                      ...(redisConfig.username && {
+                          username: redisConfig.username,
+                      }),
+                      ...(redisConfig.tls && { tls: {} }),
+                  };
 
             return {
                 createQueue: (
@@ -22,7 +38,7 @@ export const queueProviders: Provider[] = [
                     options?: Partial<QueueOptions>,
                 ) => {
                     const queue = new Queue(name, {
-                        connection: redisClient,
+                        connection: connectionOptions as any,
                         ...options,
                     });
 

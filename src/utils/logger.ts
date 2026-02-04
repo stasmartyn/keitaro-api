@@ -13,21 +13,25 @@ const consoleLogger = pino({
     },
 });
 
+const fileTransportStream = pino.transport({
+    target: "pino-pretty",
+    options: {
+        colorize: false,
+        levelFirst: true,
+        translateTime: "SYS:standard",
+        ignore: "pid,hostname",
+        messageFormat: "{msg}",
+        destination: "./logs/errors.log",
+    },
+});
+// Prevent unhandled 'error' when worker exits (e.g. disk/perm) — else process crashes
+fileTransportStream.on("error", () => {});
+
 const fileLogger = pino(
     {
         level: "error",
     },
-    pino.transport({
-        target: "pino-pretty",
-        options: {
-            colorize: false,
-            levelFirst: true,
-            translateTime: "SYS:standard",
-            ignore: "pid,hostname",
-            messageFormat: "{msg}",
-            destination: "./logs/errors.log",
-        },
-    }),
+    fileTransportStream,
 );
 
 export class Logger {

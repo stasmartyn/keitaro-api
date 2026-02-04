@@ -1,8 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Worker, Job } from "bullmq";
-import Redis from "ioredis";
 import { QueueService } from "../queue.service";
-import { RedisService } from "../../redis/redis.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
 import { Logger } from "../../utils/logger";
 import {
@@ -21,19 +20,31 @@ import { NamingSharingProgressGateway } from "../gateways/naming-sharing-progres
 export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
     private worker: Worker | null = null;
 
-    private workerRedisClient: Redis | null = null;
-
     constructor(
         private readonly queueService: QueueService,
-        private readonly redisService: RedisService,
+        private readonly configService: ConfigService,
         private readonly keitaroService: KeitaroService,
         private readonly progressGateway: NamingSharingProgressGateway,
     ) {}
 
     async onModuleInit() {
-        // Використовуємо RedisService для створення Worker client
-        // Worker вимагає maxRetriesPerRequest: null для blocking операцій
-        this.workerRedisClient = this.redisService.getWorkerClient();
+        // BullMQ Worker вимагає connection options з maxRetriesPerRequest: null
+        const redisConfig = this.configService.get("redis");
+        const connectionOptions = redisConfig.url
+            ? { url: redisConfig.url, maxRetriesPerRequest: null }
+            : {
+                  host: redisConfig.host,
+                  port: redisConfig.port,
+                  db: redisConfig.db,
+                  maxRetriesPerRequest: null,
+                  ...(redisConfig.password && {
+                      password: redisConfig.password,
+                  }),
+                  ...(redisConfig.username && {
+                      username: redisConfig.username,
+                  }),
+                  ...(redisConfig.tls && { tls: {} }),
+              };
 
         this.worker = new Worker(
             NAMING_SHARING_QUEUE_NAME,
@@ -69,7 +80,7 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                 }
             },
             {
-                connection: this.workerRedisClient,
+                connection: connectionOptions as any,
                 concurrency: 1,
                 stalledInterval: 10 * 60 * 1000, // 10 хвилин - час до того, як job вважатиметься stalled
                 maxStalledCount: 2, // Максимум stalled спроб
@@ -136,9 +147,6 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
     async onModuleDestroy() {
         if (this.worker) {
             await this.worker.close();
-        }
-        if (this.workerRedisClient) {
-            await this.workerRedisClient.quit();
         }
         Logger.info(
             "NamingSharingWorker stopped",
