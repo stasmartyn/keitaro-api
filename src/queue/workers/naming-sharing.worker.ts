@@ -232,29 +232,31 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         }
 
         if (totalFailed > 0) {
-            const errorMessage = `Failed to share ${totalFailed} out of ${totalItems} namings. Errors: ${allErrors.map((e) => `${e.naming}: ${e.error}`).join(", ")}`;
             try {
-                Logger.error(
-                    `Job ${job.id} completed with errors: ${errorMessage}`,
+                Logger.warn(
+                    `Job ${job.id} completed with partial success: ${totalSuccess}/${totalItems} namings shared successfully, ${totalFailed} failed. Errors: ${allErrors.map((e) => `${e.naming}: ${e.error}`).join("; ")}`,
                     undefined,
                     "NamingSharingWorker",
                 );
             } catch {
                 // Якщо Logger не може записати, спробуємо ще раз через Logger
                 try {
-                    Logger.error(
-                        `[NamingSharingWorker] Job ${job.id} completed with errors: ${errorMessage}`,
+                    Logger.warn(
+                        `[NamingSharingWorker] Job ${job.id} completed with partial success: ${totalSuccess}/${totalItems} namings shared successfully, ${totalFailed} failed`,
                         undefined,
                         "NamingSharingWorker",
                     );
                 } catch {
-                    // Якщо і це не спрацювало, використовуємо console.error як останній fallback
-                    console.error(
-                        `[NamingSharingWorker] Job ${job.id} completed with errors: ${errorMessage}`,
+                    // Якщо і це не спрацювало, використовуємо console.warn як останній fallback
+                    console.warn(
+                        `[NamingSharingWorker] Job ${job.id} completed with partial success: ${totalSuccess}/${totalItems} namings shared successfully, ${totalFailed} failed`,
                     );
                 }
             }
-            throw new Error(errorMessage);
+            // Не кидаємо помилку - завершуємо job як успішний, але з інформацією про failed items
+            // Це дозволяє worker продовжувати працювати і не падати
+            // Failed items будуть показані в результаті job через WebSocket
+            return;
         }
 
         Logger.info(

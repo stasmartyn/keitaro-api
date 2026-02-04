@@ -1038,7 +1038,21 @@ export class KeitaroService {
 
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const streamName = `Naming Share: ${naming}`;
+            // Keitaro API обмежує назву stream до 100 символів
+            // Обрізаємо naming, якщо він занадто довгий
+            const maxStreamNameLength = 100;
+            const baseName = `Naming Share: `;
+            const maxNamingLength = maxStreamNameLength - baseName.length;
+            let truncatedNaming = naming;
+            if (naming.length > maxNamingLength) {
+                truncatedNaming = naming.substring(0, maxNamingLength);
+                Logger.warn(
+                    `Naming "${naming}" exceeds maximum length (${naming.length} > ${maxNamingLength}). Truncated to "${truncatedNaming}" for stream name`,
+                    undefined,
+                    "KeitaroService.shareNaming",
+                );
+            }
+            const streamName = `${baseName}${truncatedNaming}`;
             const targetCampaignIdString = targetCampaignId.toString();
 
             // find() достатньо ефективний для одного пошуку (5-10k записів за мілісекунди)
