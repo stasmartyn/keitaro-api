@@ -23,7 +23,7 @@ import { UpdateCampaignDto } from "../dto/update-campaign.dto";
 import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
-import { ShareNamingDto } from "../dto/share-naming.dto";
+import { ShareNamingDto, NamingItemDto } from "../dto/share-naming.dto";
 import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
@@ -265,7 +265,6 @@ export class AppsService {
     async shareNaming(body: ShareNamingDto) {
         const { campaignId, appId, items } = body;
 
-        // Валідація вже відбувається через DTO, але додаткова перевірка
         if (!campaignId || !items || items.length === 0) {
             return {
                 success: false,
@@ -283,11 +282,38 @@ export class AppsService {
             };
         }
 
-        // Використовуємо наш NamingSharingJobData формат напряму
+        const uniqueItemsMap = new Map<string, NamingItemDto>();
+        const duplicates: string[] = [];
+
+        for (const item of items) {
+            if (uniqueItemsMap.has(item.naming)) {
+                duplicates.push(item.naming);
+                uniqueItemsMap.set(item.naming, item);
+            } else {
+                uniqueItemsMap.set(item.naming, item);
+            }
+        }
+
+        const uniqueItems = Array.from(uniqueItemsMap.values());
+
+        if (duplicates.length > 0) {
+            Logger.warn(
+                `Duplicate naming items found and deduplicated: ${duplicates.join(", ")}. Using the last value for each duplicate.`,
+                {
+                    campaignId,
+                    appId,
+                    duplicates,
+                    originalCount: items.length,
+                    uniqueCount: uniqueItems.length,
+                },
+                "AppsService.shareNaming",
+            );
+        }
+
         const jobData: NamingSharingJobData = {
             campaignId,
             appId,
-            items: items.map((item) => ({
+            items: uniqueItems.map((item) => ({
                 naming: item.naming,
                 targetCampaignId: item.targetCampaignId,
             })),
@@ -298,12 +324,14 @@ export class AppsService {
             const job = await queue.add("process-naming-batch", jobData);
 
             Logger.info(
-                `Naming sharing job added: ${job.id} for ${items.length} namings`,
+                `Naming sharing job added: ${job.id} for ${uniqueItems.length} unique namings (${items.length} original, ${duplicates.length} duplicates removed)`,
                 {
                     campaignId,
                     appId,
-                    itemsCount: items.length,
-                    namings: items.map((i) => i.naming),
+                    itemsCount: uniqueItems.length,
+                    originalCount: items.length,
+                    duplicatesCount: duplicates.length,
+                    namings: uniqueItems.map((i) => i.naming),
                 },
                 "AppsService.shareNaming",
             );
@@ -314,9 +342,14 @@ export class AppsService {
                 queue: "naming-sharing",
                 campaignId,
                 appId,
-                itemsCount: items.length,
-                items: items,
-                message: "Naming sharing job added to queue successfully",
+                itemsCount: uniqueItems.length,
+                originalItemsCount: items.length,
+                duplicatesRemoved: duplicates.length,
+                items: uniqueItems,
+                message:
+                    duplicates.length > 0
+                        ? `Naming sharing job added to queue successfully. ${duplicates.length} duplicate(s) removed (using last value for each).`
+                        : "Naming sharing job added to queue successfully",
             };
         } catch (error) {
             Logger.error(
