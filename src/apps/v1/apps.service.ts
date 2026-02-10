@@ -316,6 +316,7 @@ export class AppsService {
             items: uniqueItems.map((item) => ({
                 naming: item.naming,
                 targetCampaignId: item.targetCampaignId,
+                keitaroCampaign: item.keitaroCampaign, // Передаємо keitaroCampaign для кожного naming
             })),
         };
 

@@ -312,8 +312,18 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         campaignId: number,
     ): Promise<void> {
         try {
+            // Використовуємо keitaroCampaign з naming, якщо він є, інакше використовуємо campaignId (appCampaignId)
+            // Це дозволяє правильно знаходити stream, навіть якщо naming.keitaroCampaign змінився в CRM
+            const streamCampaignId = item.keitaroCampaign || campaignId;
+
+            Logger.info(
+                `Sharing naming "${item.naming}": using campaignId=${streamCampaignId} (from naming.keitaroCampaign=${item.keitaroCampaign || "not set"}, fallback to appCampaignId=${campaignId}), targetCampaignId=${item.targetCampaignId}`,
+                undefined,
+                "NamingSharingWorker.shareNamingWithRetry",
+            );
+
             const result = await this.keitaroService.shareNaming(
-                campaignId,
+                streamCampaignId,
                 item.naming,
                 item.targetCampaignId,
             );
