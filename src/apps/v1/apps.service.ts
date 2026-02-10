@@ -15,6 +15,7 @@ import { Model } from "mongoose";
 import { IosAppDocument } from "../../database/schemas/ios-app.model";
 import { AndroidAppDocument } from "../../database/schemas/android-app.model";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
+import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
@@ -29,6 +30,7 @@ import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
+import { getIosForcedStreamPayload } from "../../keitaro/constants/stream-params";
 import { QueueService } from "../../queue/queue.service";
 import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
 
@@ -120,6 +122,19 @@ export class AppsService {
         );
 
         return createByOfferWithErrorHandler(body);
+    }
+
+    async createEmptyCampaign(body: CreateEmptyCampaignDto) {
+        const createEmptyCampaignWithErrorHandler = wrapWithErrorHandler(
+            this.createEmptyCampaignInternal.bind(this),
+            {
+                functionName: "AppsService.createEmptyCampaign",
+                additionalData: {
+                    endpoint: "POST /v1/apps/create-empty-campaign",
+                },
+            },
+        );
+        return createEmptyCampaignWithErrorHandler(body);
     }
 
     async createOnelinkCampaign(body: CreateOnelinkCampaignDto) {
@@ -707,6 +722,59 @@ export class AppsService {
         );
 
         return { ...result, alias };
+    }
+
+    private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
+        const { name, os_platform, sub } = body;
+        if (!name || !os_platform || !sub) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        const TRAFFIC_SOURCE_ID = 2234;
+
+        let alias = this.generateUniqueAlias();
+        let campaignResponse: ICampaign;
+        while (true) {
+            try {
+                campaignResponse = await this.keitaroClient.createCampaign({
+                    name,
+                    alias,
+                    traffic_source_id: TRAFFIC_SOURCE_ID,
+                    sub_id: sub,
+                });
+                break;
+            } catch (error) {
+                if (error?.response?.data?.alias?.length) {
+                    alias = this.generateUniqueAlias();
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        const campaignId = campaignResponse.id;
+        const campaignName = campaignResponse.name;
+        const campaignAlias = campaignResponse.alias;
+
+        if (os_platform === "ios") {
+            const existingStreams =
+                await this.keitaroClient.getCampaignStreams(campaignId);
+            const forcedStreamPayload = getIosForcedStreamPayload();
+            await this.keitaroClient.createStream(
+                campaignId,
+                forcedStreamPayload,
+            );
+            for (const stream of existingStreams) {
+                const position = stream.position;
+                if (position != null && position >= 1) {
+                    await this.keitaroClient.updateStream(stream.id, {
+                        position: position + 1,
+                    });
+                }
+            }
+        }
+
+        return { name: campaignName, alias: campaignAlias, id: campaignId };
     }
 
     private async copyCampaignInternal(body: CopyCampaignDto) {

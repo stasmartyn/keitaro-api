@@ -231,7 +231,7 @@ export const campaignParams = (
         cost_type: "CPS",
         cost_value: 0,
         cost_currency: "USD",
-        group_id,
+        ...(group_id != null && { group_id }),
         bind_visitors: "slo",
         traffic_source_id,
         cost_auto: true,
