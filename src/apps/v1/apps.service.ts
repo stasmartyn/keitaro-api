@@ -30,7 +30,6 @@ import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
-import { getIosForcedStreamPayload } from "../../keitaro/constants/stream-params";
 import { QueueService } from "../../queue/queue.service";
 import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
 
@@ -725,22 +724,52 @@ export class AppsService {
     }
 
     private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
-        const { name, os_platform, sub } = body;
-        if (!name || !os_platform || !sub) {
+        const { buyer, sub } = body;
+        if (!buyer || !sub) {
             throw new BadRequestException("Missing required fields.");
         }
 
-        const TRAFFIC_SOURCE_ID = 2234;
+        const nodeEnv = this.configService.get<string>("NODE_ENV");
+        const templateId =
+            nodeEnv === "production"
+                ? this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdProd",
+                  )
+                : this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdDev",
+                  );
+        if (!templateId) {
+            throw new BadRequestException(
+                `Empty campaign template not configured for NODE_ENV=${nodeEnv}. Set EMPTY_CAMPAIGN_TEMPLATE_ID_DEV and EMPTY_CAMPAIGN_TEMPLATE_ID_PROD.`,
+            );
+        }
 
         let alias = this.generateUniqueAlias();
-        let campaignResponse: ICampaign;
+        let copiedCampaign: ICampaign;
+
         while (true) {
             try {
-                campaignResponse = await this.keitaroClient.createCampaign({
-                    name,
+                const copyResult =
+                    await this.keitaroClient.copyCampaign(templateId);
+                if (
+                    !copyResult ||
+                    !Array.isArray(copyResult) ||
+                    copyResult.length === 0
+                ) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Invalid response from Keitaro API.",
+                    );
+                }
+                copiedCampaign = copyResult[0];
+                if (!copiedCampaign?.id) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Copied campaign data is invalid.",
+                    );
+                }
+
+                await this.keitaroClient.updateCampaign(copiedCampaign.id, {
+                    name: `${alias} ${buyer} (${sub}) SION Apps`,
                     alias,
-                    traffic_source_id: TRAFFIC_SOURCE_ID,
-                    sub_id: sub,
                 });
                 break;
             } catch (error) {
@@ -752,27 +781,9 @@ export class AppsService {
             }
         }
 
-        const campaignId = campaignResponse.id;
-        const campaignName = campaignResponse.name;
-        const campaignAlias = campaignResponse.alias;
-
-        if (os_platform === "ios") {
-            const existingStreams =
-                await this.keitaroClient.getCampaignStreams(campaignId);
-            const forcedStreamPayload = getIosForcedStreamPayload();
-            await this.keitaroClient.createStream(
-                campaignId,
-                forcedStreamPayload,
-            );
-            for (const stream of existingStreams) {
-                const position = stream.position;
-                if (position != null && position >= 1) {
-                    await this.keitaroClient.updateStream(stream.id, {
-                        position: position + 1,
-                    });
-                }
-            }
-        }
+        const campaignId = copiedCampaign.id;
+        const campaignName = `${alias} ${buyer} (${sub}) SION Apps`;
+        const campaignAlias = alias;
 
         return { name: campaignName, alias: campaignAlias, id: campaignId };
     }

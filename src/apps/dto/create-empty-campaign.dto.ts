@@ -12,4 +12,8 @@ export class CreateEmptyCampaignDto {
     @IsString()
     @IsNotEmpty()
     sub: string;
+
+    @IsString()
+    @IsNotEmpty()
+    buyer: string;
 }
