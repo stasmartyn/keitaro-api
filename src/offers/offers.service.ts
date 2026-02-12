@@ -191,9 +191,9 @@ export class OffersService {
 
         const numberOfLands = Object.keys(lands).length;
 
-        if (numberOfLands < 1 || numberOfLands > 10) {
+        if (numberOfLands < 1 || numberOfLands > 20) {
             throw new BadRequestException(
-                "The 'lands' field must contain between 1 and 10 key-value pairs.",
+                "The 'lands' field must contain between 1 and 20 key-value pairs.",
             );
         }
 
