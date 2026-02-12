@@ -175,6 +175,7 @@ export class OffersService {
             notes,
             lands,
             payout_auto,
+            rate,
         } = body;
 
         if (
@@ -248,7 +249,7 @@ export class OffersService {
                     await this.keitaroService.createOffer(offerParams);
 
                 const updatedOfferParams = {
-                    name: `${offerData.id} | ${offerName}`,
+                    name: `${offerData.id} | ${offerName}${rate ? ` | ${rate}` : ""}`,
                 };
                 const updatedOfferData = await this.keitaroService.updateOffer(
                     offerData.id,
