@@ -62,7 +62,7 @@ pipeline {
                         env.IMAGE_TAG = 'prod'
                         env.DEPLOY_ENV = 'production'
                         env.SERVICE_PORT= '5006'
-                        env.ENV_FILE= '.env'
+                        env.ENV_FILE= '.env.prod'
                     } else if (env.BUILD_BRANCH == 'dev') {
                         env.IMAGE_TAG = 'dev'
                         env.DEPLOY_ENV = 'development'
