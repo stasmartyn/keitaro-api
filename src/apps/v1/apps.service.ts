@@ -785,7 +785,12 @@ export class AppsService {
         const campaignName = `${alias} ${buyer} (${sub}) SION Apps`;
         const campaignAlias = alias;
 
-        return { name: campaignName, alias: campaignAlias, id: campaignId };
+        return {
+            name: campaignName,
+            alias: campaignAlias,
+            id: campaignId,
+            token: copiedCampaign.token,
+        };
     }
 
     private async copyCampaignInternal(body: CopyCampaignDto) {
