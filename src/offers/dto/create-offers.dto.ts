@@ -50,6 +50,11 @@ export class CreateMultipleOffersDto {
 
     @IsNotEmpty()
     lands: Record<string, string>;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    rate?: string;
 }
 
 export class CreateSingleOfferDto {
