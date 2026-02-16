@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateOnelinkCampaignDto {
     @IsString()
@@ -12,4 +12,12 @@ export class CreateOnelinkCampaignDto {
     @IsNotEmpty()
     @IsString()
     app_name: string;
+
+    @IsOptional()
+    @IsNumber()
+    onelink_landing_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    campaign_group_id?: number;
 }

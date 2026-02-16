@@ -15,6 +15,7 @@ import { Model } from "mongoose";
 import { IosAppDocument } from "../../database/schemas/ios-app.model";
 import { AndroidAppDocument } from "../../database/schemas/android-app.model";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
+import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
@@ -120,6 +121,19 @@ export class AppsService {
         );
 
         return createByOfferWithErrorHandler(body);
+    }
+
+    async createEmptyCampaign(body: CreateEmptyCampaignDto) {
+        const createEmptyCampaignWithErrorHandler = wrapWithErrorHandler(
+            this.createEmptyCampaignInternal.bind(this),
+            {
+                functionName: "AppsService.createEmptyCampaign",
+                additionalData: {
+                    endpoint: "POST /v1/apps/create-empty-campaign",
+                },
+            },
+        );
+        return createEmptyCampaignWithErrorHandler(body);
     }
 
     async createOnelinkCampaign(body: CreateOnelinkCampaignDto) {
@@ -316,6 +330,8 @@ export class AppsService {
             items: uniqueItems.map((item) => ({
                 naming: item.naming,
                 targetCampaignId: item.targetCampaignId,
+                keitaroCampaign: item.keitaroCampaign, // Передаємо keitaroCampaign для кожного naming
+                oldKeitaroCampaign: item.oldKeitaroCampaign, // Передаємо стару кампанію для міграції stream
             })),
         };
 
@@ -503,10 +519,19 @@ export class AppsService {
     private async createOnelinkCampaignInternal(
         body: CreateOnelinkCampaignDto,
     ) {
-        const { offer_id, bundle_id, app_name } = body;
+        const {
+            offer_id,
+            bundle_id,
+            app_name,
+            onelink_landing_id,
+            campaign_group_id,
+        } = body;
         if (!offer_id || !bundle_id || !app_name) {
             throw new BadRequestException("Missing required fields.");
         }
+
+        const landingId = onelink_landing_id || 363;
+        const groupId = campaign_group_id || 40;
 
         const alias = this.generateUniqueAlias();
         while (true) {
@@ -514,7 +539,7 @@ export class AppsService {
                 name: `Onelink ${bundle_id} (${app_name})`,
                 alias,
                 traffic_source_id: 0,
-                group_id: 40,
+                group_id: groupId,
             };
 
             const createCampaignResponse: ICampaign =
@@ -539,11 +564,9 @@ export class AppsService {
                 triggers: [],
                 landings: [
                     {
-                        landing_id: 363,
+                        landing_id: landingId,
                         state: "active",
                         share: 100,
-                        created_at: "2025-05-14 15:31:25",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
                 offers: [
@@ -551,8 +574,6 @@ export class AppsService {
                         offer_id: Number(offer_id),
                         state: "active",
                         share: 100,
-                        created_at: "2025-06-12 07:53:37",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
             };
@@ -740,6 +761,76 @@ export class AppsService {
         );
 
         return { ...result, alias };
+    }
+
+    private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
+        const { buyer, sub } = body;
+        if (!buyer || !sub) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        const nodeEnv = this.configService.get<string>("NODE_ENV");
+        const templateId =
+            nodeEnv === "production"
+                ? this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdProd",
+                  )
+                : this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdDev",
+                  );
+        if (!templateId) {
+            throw new BadRequestException(
+                `Empty campaign template not configured for NODE_ENV=${nodeEnv}. Set EMPTY_CAMPAIGN_TEMPLATE_ID_DEV and EMPTY_CAMPAIGN_TEMPLATE_ID_PROD.`,
+            );
+        }
+
+        let alias = this.generateUniqueAlias();
+        let copiedCampaign: ICampaign;
+
+        while (true) {
+            try {
+                const copyResult =
+                    await this.keitaroClient.copyCampaign(templateId);
+                if (
+                    !copyResult ||
+                    !Array.isArray(copyResult) ||
+                    copyResult.length === 0
+                ) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Invalid response from Keitaro API.",
+                    );
+                }
+                copiedCampaign = copyResult[0];
+                if (!copiedCampaign?.id) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Copied campaign data is invalid.",
+                    );
+                }
+
+                await this.keitaroClient.updateCampaign(copiedCampaign.id, {
+                    name: `${alias} ${buyer} (${sub}) SION Apps`,
+                    alias,
+                });
+                break;
+            } catch (error) {
+                if (error?.response?.data?.alias?.length) {
+                    alias = this.generateUniqueAlias();
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        const campaignId = copiedCampaign.id;
+        const campaignName = `${alias} ${buyer} (${sub}) SION Apps`;
+        const campaignAlias = alias;
+
+        return {
+            name: campaignName,
+            alias: campaignAlias,
+            id: campaignId,
+            token: copiedCampaign.token,
+        };
     }
 
     private async copyCampaignInternal(body: CopyCampaignDto) {

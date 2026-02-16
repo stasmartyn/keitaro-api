@@ -27,7 +27,6 @@ import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.inter
 export class KeitaroService {
     private static readonly STREAM_NAMES = {
         TEST_FLOW: "test flow",
-        FILTER_TEST_FLOW: "filter test flow",
         DENY_ALL_TRAFFIC: "deny all traffic",
         DENY_ORG_TRAFFIC: "deny org traffic",
         DEFAULT: "default",
@@ -280,14 +279,18 @@ export class KeitaroService {
     async createDomain(domain: string, groupId: number, oneLinkSettings: any) {
         try {
             const url = this.buildUrl("admin_api/v1/domains");
+            const parsedSettings =
+                typeof oneLinkSettings === "string"
+                    ? JSON.parse(oneLinkSettings)
+                    : oneLinkSettings || {};
             const params = {
                 name: domain,
-                group_id: String(groupId),
+                group_id: groupId,
                 ssl_redirect: true,
                 allow_indexing: false,
                 admin_dashboard: false,
-                catch_not_found: oneLinkSettings?.catch_not_found || false,
-                default_campaign_id: oneLinkSettings?.default_campaign_id || 0,
+                catch_not_found: parsedSettings?.catch_not_found || false,
+                default_campaign_id: parsedSettings?.default_campaign_id || 0,
             };
 
             const response = await axios.post(url, params, {
@@ -780,27 +783,20 @@ export class KeitaroService {
                 );
             }
 
-            // Видаляємо потоки, які більше не потрібні
+            // НЕ видаляємо автоматично потоки, які більше не потрібні
+            // Згідно з логікою: CRM - single source of truth, але streams в Keitaro залишаються
+            // навіть якщо їх немає в CRM (для можливості ручного підтримування)
+            // Якщо в Keitaro є stream, а в CRM його немає - показуємо warning, але не видаляємо
             const currentNamings = new Set(namingStreams.map((n) => n.naming));
             for (const [naming, stream] of existingNamingMap) {
                 if (!currentNamings.has(naming)) {
-                    updates.push(
-                        this.deleteResource("admin_api/v1/streams", stream.id)
-                            .then((result) => ({
-                                type: "naming_stream_delete",
-                                id: stream.id,
-                                naming: naming,
-                                success: true,
-                                data: result,
-                            }))
-                            .catch((error) => ({
-                                type: "naming_stream_delete",
-                                id: stream.id,
-                                naming: naming,
-                                success: false,
-                                error: error.message,
-                            })),
+                    Logger.warn(
+                        `Stream "${stream.name}" (id: ${stream.id}) exists in Keitaro but not in CRM naming list. Keeping stream for manual maintenance.`,
+                        undefined,
+                        "KeitaroService.syncNamingStreams",
                     );
+                    // Не видаляємо stream - залишаємо для ручного підтримування
+                    // Якщо потрібно видалити - це має бути зроблено вручну в Keitaro
                 }
             }
         } catch (error) {
@@ -1014,6 +1010,7 @@ export class KeitaroService {
         campaignId: number,
         naming: string,
         targetCampaignId: number,
+        oldCampaignId?: number | null, // Стара кампанія для міграції stream
     ): Promise<{
         created: number;
         updated: number;
@@ -1037,25 +1034,150 @@ export class KeitaroService {
         }
 
         try {
+            Logger.info(
+                `Starting shareNaming: campaignId=${campaignId}, naming="${naming}", targetCampaignId=${targetCampaignId}`,
+                undefined,
+                "KeitaroService.shareNaming",
+            );
+
             const streams = await this.getCampaignStreams(campaignId);
-            const streamName = `Naming Share: ${naming}`;
-            const targetCampaignIdString = targetCampaignId.toString();
+            Logger.info(
+                `Found ${streams.length} streams in campaign ${campaignId}`,
+                undefined,
+                "KeitaroService.shareNaming",
+            );
 
-            // find() достатньо ефективний для одного пошуку (5-10k записів за мілісекунди)
-            // Map був би корисний тільки якщо потрібно багато разів працювати з даними
-            const existingStream = streams.find(
-                (s) => s.name === streamName,
-            ) as RegularStream | undefined;
-
-            if (existingStream) {
-                Logger.info(
-                    `Stream "${streamName}" already exists (id: ${existingStream.id}, action_payload: ${existingStream.action_payload})`,
+            // Keitaro API обмежує назву stream до 100 символів
+            // Обрізаємо naming, якщо він занадто довгий
+            const maxStreamNameLength = 100;
+            const baseName = `Naming Share: `;
+            const maxNamingLength = maxStreamNameLength - baseName.length;
+            let truncatedNaming = naming;
+            if (naming.length > maxNamingLength) {
+                truncatedNaming = naming.substring(0, maxNamingLength);
+                Logger.warn(
+                    `Naming "${naming}" exceeds maximum length (${naming.length} > ${maxNamingLength}). Truncated to "${truncatedNaming}" for stream name`,
                     undefined,
                     "KeitaroService.shareNaming",
                 );
-                if (existingStream.action_payload === targetCampaignIdString) {
+            }
+            const streamName = `${baseName}${truncatedNaming}`;
+            const targetCampaignIdString = targetCampaignId.toString();
+
+            Logger.info(
+                `Looking for stream "${streamName}" in campaign ${campaignId}`,
+                undefined,
+                "KeitaroService.shareNaming",
+            );
+
+            // find() достатньо ефективний для одного пошуку (5-10k записів за мілісекунди)
+            // Map був би корисний тільки якщо потрібно багато разів працювати з даними
+            let existingStream = streams.find((s) => s.name === streamName) as
+                | RegularStream
+                | undefined;
+
+            // Якщо stream не знайдено в новій кампанії, але є oldCampaignId - шукаємо в старій кампанії
+            if (
+                !existingStream &&
+                oldCampaignId &&
+                oldCampaignId !== campaignId
+            ) {
+                Logger.info(
+                    `Stream "${streamName}" not found in campaign ${campaignId}. Searching in old campaign ${oldCampaignId}...`,
+                    undefined,
+                    "KeitaroService.shareNaming",
+                );
+                const oldStreams = await this.getCampaignStreams(oldCampaignId);
+                existingStream = oldStreams.find(
+                    (s) => s.name === streamName,
+                ) as RegularStream | undefined;
+
+                if (existingStream) {
+                    Logger.warn(
+                        `Stream "${streamName}" found in old campaign ${oldCampaignId} (id: ${existingStream.id}). Will migrate to new campaign ${campaignId}.`,
+                        {
+                            streamId: existingStream.id,
+                            oldCampaignId,
+                            newCampaignId: campaignId,
+                        },
+                        "KeitaroService.shareNaming",
+                    );
+                }
+            }
+
+            if (existingStream) {
+                // Перевіряємо, чи stream в правильній кампанії
+                const isInCorrectCampaign =
+                    existingStream.campaign_id === campaignId;
+
+                Logger.info(
+                    `Stream "${streamName}" found in campaign ${campaignId} (stream id: ${existingStream.id}, stream campaign_id: ${existingStream.campaign_id}, action_payload: ${existingStream.action_payload}, isInCorrectCampaign: ${isInCorrectCampaign})`,
+                    {
+                        streamId: existingStream.id,
+                        streamCampaignId: existingStream.campaign_id,
+                        targetCampaignId: campaignId,
+                        actionPayload: existingStream.action_payload,
+                        expectedTargetCampaignId: targetCampaignIdString,
+                        isInCorrectCampaign,
+                    },
+                    "KeitaroService.shareNaming",
+                );
+
+                if (!isInCorrectCampaign) {
+                    Logger.warn(
+                        `Stream "${streamName}" is in wrong campaign! Stream campaign_id: ${existingStream.campaign_id}, expected: ${campaignId}. This might indicate that naming.keitaroCampaign was changed in CRM.`,
+                        {
+                            streamId: existingStream.id,
+                            streamCampaignId: existingStream.campaign_id,
+                            expectedCampaignId: campaignId,
+                        },
+                        "KeitaroService.shareNaming",
+                    );
+                }
+
+                // Повна валідація stream: перевіряємо всі поля, які мають відповідати CRM
+                const subId17Filter = existingStream.filters?.find(
+                    (f: any) => f.name === "sub_id_17",
+                );
+                const existingNamingInFilter = subId17Filter?.payload?.[0];
+                const isActionPayloadCorrect =
+                    existingStream.action_payload === targetCampaignIdString;
+                const isNamingCorrect = existingNamingInFilter === naming;
+                const isStateCorrect = existingStream.state === "active";
+                const isActionTypeCorrect =
+                    existingStream.action_type === "campaign";
+                const isTypeCorrect = existingStream.type === "regular";
+
+                Logger.info(
+                    `Validation results for stream "${streamName}": campaign=${isInCorrectCampaign}, action_payload=${isActionPayloadCorrect}, naming=${isNamingCorrect}, state=${isStateCorrect}, action_type=${isActionTypeCorrect}, type=${isTypeCorrect}`,
+                    {
+                        isInCorrectCampaign,
+                        isActionPayloadCorrect,
+                        isNamingCorrect,
+                        isStateCorrect,
+                        isActionTypeCorrect,
+                        isTypeCorrect,
+                        existingCampaignId: existingStream.campaign_id,
+                        expectedCampaignId: campaignId,
+                        existingActionPayload: existingStream.action_payload,
+                        expectedActionPayload: targetCampaignIdString,
+                        existingNaming: existingNamingInFilter,
+                        expectedNaming: naming,
+                    },
+                    "KeitaroService.shareNaming",
+                );
+
+                const isFullyValid =
+                    isInCorrectCampaign &&
+                    isActionPayloadCorrect &&
+                    isNamingCorrect &&
+                    isStateCorrect &&
+                    isActionTypeCorrect &&
+                    isTypeCorrect;
+
+                if (isFullyValid) {
                     Logger.info(
-                        `Stream "${streamName}" already configured correctly, skipping`,
+                        `Stream "${streamName}" already configured correctly (all fields match), skipping`,
                         undefined,
                         "KeitaroService.shareNaming",
                     );
@@ -1065,22 +1187,127 @@ export class KeitaroService {
                         skipped: 1,
                         stream: existingStream,
                     };
-                } else {
-                    Logger.info(
-                        `Updating stream "${streamName}" action_payload from ${existingStream.action_payload} to ${targetCampaignIdString}`,
-                        undefined,
+                }
+
+                // Якщо щось не відповідає - оновлюємо stream
+                const mismatches: string[] = [];
+                if (!isInCorrectCampaign) {
+                    mismatches.push(
+                        `campaign_id: ${existingStream.campaign_id} -> ${campaignId} (naming.keitaroCampaign changed in CRM)`,
+                    );
+                }
+                if (!isActionPayloadCorrect) {
+                    mismatches.push(
+                        `action_payload: ${existingStream.action_payload} -> ${targetCampaignIdString}`,
+                    );
+                }
+                if (!isNamingCorrect) {
+                    mismatches.push(
+                        `naming in filter: ${existingNamingInFilter || "missing"} -> ${naming}`,
+                    );
+                }
+                if (!isStateCorrect) {
+                    mismatches.push(`state: ${existingStream.state} -> active`);
+                }
+                if (!isActionTypeCorrect) {
+                    mismatches.push(
+                        `action_type: ${existingStream.action_type} -> campaign`,
+                    );
+                }
+                if (!isTypeCorrect) {
+                    mismatches.push(`type: ${existingStream.type} -> regular`);
+                }
+
+                Logger.info(
+                    `Stream "${streamName}" needs update. Mismatches: ${mismatches.join(", ")}`,
+                    {
+                        mismatches,
+                        streamId: existingStream.id,
+                        currentCampaignId: existingStream.campaign_id,
+                        expectedCampaignId: campaignId,
+                    },
+                    "KeitaroService.shareNaming",
+                );
+
+                // Якщо stream в неправильній кампанії - це означає, що naming.keitaroCampaign змінився
+                // Потрібно видалити stream зі старої кампанії та створити в новій
+                if (!isInCorrectCampaign) {
+                    Logger.warn(
+                        `Stream "${streamName}" is in wrong campaign (${existingStream.campaign_id} instead of ${campaignId}). This indicates naming.keitaroCampaign was changed in CRM. Deleting old stream and creating new one in correct campaign.`,
+                        {
+                            streamId: existingStream.id,
+                            oldCampaignId: existingStream.campaign_id,
+                            newCampaignId: campaignId,
+                        },
                         "KeitaroService.shareNaming",
                     );
+                    try {
+                        await this.deleteResource(
+                            "admin_api/v1/streams",
+                            existingStream.id,
+                        );
+                        Logger.info(
+                            `Deleted stream "${streamName}" (id: ${existingStream.id}) from old campaign ${existingStream.campaign_id}. Will create new stream in campaign ${campaignId}`,
+                            undefined,
+                            "KeitaroService.shareNaming",
+                        );
+                    } catch (deleteError) {
+                        Logger.error(
+                            `Failed to delete stream "${streamName}" from old campaign: ${deleteError instanceof Error ? deleteError.message : "Unknown error"}`,
+                            deleteError instanceof Error
+                                ? deleteError.stack
+                                : undefined,
+                            "KeitaroService.shareNaming",
+                        );
+                        // Продовжуємо - спробуємо створити новий stream
+                    }
+                    // Після видалення - виходимо з блоку і створюємо новий stream (код нижче)
+                    // Не оновлюємо існуючий stream, бо він в неправильній кампанії
+                } else {
+                    // Оновлюємо всі поля, які не відповідають
+                    const updateData: any = {
+                        state: "active",
+                        action_payload: targetCampaignIdString,
+                        action_type: "campaign",
+                        type: "regular",
+                    };
+
+                    // Оновлюємо filters, якщо naming не відповідає
+                    if (!isNamingCorrect) {
+                        const updatedFilters = existingStream.filters?.map(
+                            (f: any) => {
+                                if (f.name === "sub_id_17") {
+                                    return {
+                                        name: "sub_id_17",
+                                        mode: "accept",
+                                        payload: [naming],
+                                    };
+                                }
+                                return f;
+                            },
+                        ) || [
+                            {
+                                name: "sub_id_17",
+                                mode: "accept",
+                                payload: [naming],
+                            },
+                        ];
+                        updateData.filters = updatedFilters;
+                    }
+
+                    Logger.info(
+                        `Updating stream "${streamName}" with corrections: ${JSON.stringify(updateData)}`,
+                        { streamId: existingStream.id, mismatches },
+                        "KeitaroService.shareNaming",
+                    );
+
                     const updatedStream = await this.updateStream(
                         existingStream.id,
-                        {
-                            action_payload: targetCampaignIdString,
-                            state: "active",
-                        },
+                        updateData,
                     );
                     Logger.info(
-                        `Stream "${streamName}" updated successfully`,
-                        { streamId: updatedStream?.id },
+                        `Stream "${streamName}" updated successfully with all corrections`,
+                        { streamId: updatedStream?.id, mismatches },
                         "KeitaroService.shareNaming",
                     );
                     return {
@@ -1581,11 +1808,6 @@ export class KeitaroService {
                     s.name?.toLowerCase() ===
                     KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             );
-            const testFlowFilter = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-            );
 
             const getNextPosition = () => {
                 const maxPosition = streams.reduce(
@@ -1638,30 +1860,6 @@ export class KeitaroService {
                 );
                 createdStreams.push({
                     name: KeitaroService.STREAM_NAMES.TEST_FLOW,
-                    id: created.id,
-                });
-            }
-
-            if (!testFlowFilter) {
-                const filterData = {
-                    ...defaultStreamData,
-                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
-                    schema: "action",
-                    action_type: "do_nothing",
-                    position: getNextPosition(),
-                    state: "disabled",
-                    filter_or: false,
-                    filters: [
-                        {
-                            name: "country",
-                            mode: "accept",
-                            payload: ["PL", "UA", "RO", "MD"],
-                        },
-                    ],
-                };
-                const created = await this.createStream(campaignId, filterData);
-                createdStreams.push({
-                    name: KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
                     id: created.id,
                 });
             }
@@ -1719,14 +1917,73 @@ export class KeitaroService {
         campaignId: number,
     ): Promise<any> {
         try {
-            const streams = await this.getCampaignStreams(campaignId);
             const issues: any[] = [];
             const warnings: string[] = [];
+            const fixed: any[] = [];
 
+            // 1. Перевірка існування campaign в Keitaro
+            let campaign;
+            try {
+                campaign = await this.getCampaignById(campaignId);
+                if (!campaign) {
+                    issues.push({
+                        type: "campaign_not_found",
+                        streamName: null,
+                        message: `Campaign з ID ${campaignId} не знайдено в Keitaro`,
+                    });
+                    return {
+                        valid: false,
+                        warnings,
+                        issues,
+                        fixed,
+                    };
+                }
+            } catch (error: any) {
+                if (error?.response?.status === 404) {
+                    issues.push({
+                        type: "campaign_not_found",
+                        streamName: null,
+                        message: `Campaign з ID ${campaignId} не існує в Keitaro`,
+                    });
+                    return {
+                        valid: false,
+                        warnings,
+                        issues,
+                        fixed,
+                    };
+                }
+                throw error;
+            }
+
+            // 2. Валідація Click API token
+            if (!campaign.token || campaign.token.trim() === "") {
+                issues.push({
+                    type: "missing_click_api_token",
+                    streamName: null,
+                    message:
+                        "Click API token відсутній або порожній в campaign",
+                });
+            } else {
+                // Перевірка формату token (зазвичай це alphanumeric string)
+                const tokenPattern = /^[A-Za-z0-9]+$/;
+                if (!tokenPattern.test(campaign.token)) {
+                    warnings.push(
+                        `Click API token має нестандартний формат: "${campaign.token}"`,
+                    );
+                }
+            }
+
+            // 3. Отримуємо streams для подальшої перевірки
+            const streams = await this.getCampaignStreams(campaignId);
+
+            // 4. Перевірка GEO filters
+            this.validateGeoFilters(streams, warnings);
+
+            // 5. Перевірка default flow
             const defaultFlow = streams.find((s) => s.type === "default");
-
             this.validateDefaultFlow(defaultFlow, campaignId, issues);
 
+            // 6. Перевірка filter flows
             const filterFlows = streams.filter(
                 (s) =>
                     s.name?.toLowerCase().startsWith("filter") &&
@@ -1734,18 +1991,21 @@ export class KeitaroService {
             );
             this.validateFilterFlows(filterFlows, issues);
 
+            // 7. Перевірка всіх naming flows
             const namingFlows = streams.filter(
                 (s) =>
                     s.name?.startsWith("Naming Share:") && s.type === "regular",
             );
             this.validateNamingFlows(namingFlows, issues);
 
+            // 8. Перевірка на зайві streams
             this.checkExtraStreams(streams, warnings);
 
             return {
                 valid: issues.length === 0,
                 warnings,
                 issues,
+                fixed,
             };
         } catch (error) {
             this.handleKeitaroError(
@@ -1761,13 +2021,25 @@ export class KeitaroService {
 
     async ensureAndValidateIntegration(campaignId: number): Promise<any> {
         try {
+            // Автоматично створюємо missing required streams (test flow, deny all, deny org, default)
             const createdStreams = await this.ensureRequiredStreams(campaignId);
+
+            // Перевіряємо інтеграцію
             const validationResult =
                 await this.validateIntegrationInternal(campaignId);
+
+            // Формуємо fixed items (створені streams)
+            const fixed = createdStreams.map((stream) => ({
+                type: "stream_created",
+                streamName: stream.name,
+                message: `Автоматично створено stream: "${stream.name}" (ID: ${stream.id})`,
+                streamId: stream.id,
+            }));
 
             return {
                 ...validationResult,
                 createdStreams,
+                fixed, // Додаємо fixed для відправки в телеграм
             };
         } catch (error) {
             this.handleKeitaroError(
@@ -1827,6 +2099,7 @@ export class KeitaroService {
 
     private validateNamingFlows(namingFlows: any[], issues: any[]): void {
         for (const namingFlow of namingFlows) {
+            // Перевірка action_type
             if (namingFlow.action_type !== "campaign") {
                 issues.push({
                     type: "incorrect_config",
@@ -1834,6 +2107,8 @@ export class KeitaroService {
                     message: "Naming потік має мати action_type 'campaign'",
                 });
             }
+
+            // Перевірка наявності фільтра sub_id_17
             const hasSubId17Filter = namingFlow.filters?.some(
                 (f) => f.name === "sub_id_17",
             );
@@ -1844,13 +2119,43 @@ export class KeitaroService {
                     message: "Naming потік має містити фільтр sub_id_17",
                 });
             }
+
+            // Перевірка state
+            if (namingFlow.state !== "active") {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: `Naming потік має бути активним, але має state: "${namingFlow.state}"`,
+                });
+            }
+
+            // Перевірка type
+            if (namingFlow.type !== "regular") {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message: `Naming потік має мати type "regular", але має: "${namingFlow.type}"`,
+                });
+            }
+
+            // Перевірка action_payload (має бути встановлено)
+            if (
+                !namingFlow.action_payload ||
+                namingFlow.action_payload === ""
+            ) {
+                issues.push({
+                    type: "incorrect_config",
+                    streamName: namingFlow.name,
+                    message:
+                        "Naming потік має містити action_payload (target campaign ID)",
+                });
+            }
         }
     }
 
     private checkExtraStreams(streams: any[], warnings: string[]): void {
         const allowedNames = [
             KeitaroService.STREAM_NAMES.TEST_FLOW,
-            KeitaroService.STREAM_NAMES.FILTER_TEST_FLOW,
             KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
             KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
             KeitaroService.STREAM_NAMES.DEFAULT,
@@ -1866,6 +2171,64 @@ export class KeitaroService {
             warnings.push(
                 `Знайдено зайві потоки: ${extraStreams.map((s) => s.name).join(", ")}`,
             );
+        }
+    }
+
+    /**
+     * Перевіряє GEO filters в streams
+     * Видає warnings для розбіжностей (наприклад, якщо є GEO filters, які не очікуються)
+     */
+    private validateGeoFilters(streams: any[], warnings: string[]): void {
+        const geoStreams = streams.filter((s) => {
+            const hasGeoFilter = s.filters?.some(
+                (f) => f.name === "country" || f.name === "geo",
+            );
+            return hasGeoFilter && s.type === "forced";
+        });
+
+        if (geoStreams.length > 0) {
+            // Перевіряємо, чи GEO filters мають правильну конфігурацію
+            for (const geoStream of geoStreams) {
+                const geoFilters = geoStream.filters?.filter(
+                    (f) => f.name === "country" || f.name === "geo",
+                );
+
+                if (geoFilters && geoFilters.length > 0) {
+                    for (const geoFilter of geoFilters) {
+                        // Перевірка на порожні payload
+                        if (
+                            !geoFilter.payload ||
+                            (Array.isArray(geoFilter.payload) &&
+                                geoFilter.payload.length === 0)
+                        ) {
+                            warnings.push(
+                                `Stream "${geoStream.name}" має GEO filter з порожнім payload`,
+                            );
+                        }
+
+                        // Перевірка на невалідні коди країн (якщо payload - масив)
+                        if (Array.isArray(geoFilter.payload)) {
+                            const invalidCodes = geoFilter.payload.filter(
+                                (code) =>
+                                    typeof code !== "string" ||
+                                    code.length !== 2,
+                            );
+                            if (invalidCodes.length > 0) {
+                                warnings.push(
+                                    `Stream "${geoStream.name}" має GEO filter з невалідними кодами країн: ${invalidCodes.join(", ")}`,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Якщо є GEO filters, але немає явних проблем - просто інформуємо
+            if (geoStreams.length > 0) {
+                warnings.push(
+                    `Знайдено ${geoStreams.length} stream(s) з GEO filters. Перевірте, чи вони відповідають очікуваним налаштуванням.`,
+                );
+            }
         }
     }
 

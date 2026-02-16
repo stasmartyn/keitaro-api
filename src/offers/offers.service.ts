@@ -175,6 +175,7 @@ export class OffersService {
             notes,
             lands,
             payout_auto,
+            rate,
         } = body;
 
         if (
@@ -191,9 +192,9 @@ export class OffersService {
 
         const numberOfLands = Object.keys(lands).length;
 
-        if (numberOfLands < 1 || numberOfLands > 10) {
+        if (numberOfLands < 1 || numberOfLands > 20) {
             throw new BadRequestException(
-                "The 'lands' field must contain between 1 and 10 key-value pairs.",
+                "The 'lands' field must contain between 1 and 20 key-value pairs.",
             );
         }
 
@@ -248,7 +249,7 @@ export class OffersService {
                     await this.keitaroService.createOffer(offerParams);
 
                 const updatedOfferParams = {
-                    name: `${offerData.id} | ${offerName}`,
+                    name: `${offerData.id} | ${offerName}${rate ? ` | ${rate}` : ""}`,
                 };
                 const updatedOfferData = await this.keitaroService.updateOffer(
                     offerData.id,
@@ -265,15 +266,24 @@ export class OffersService {
     }
 
     private async createSingleOfferInternal(body: CreateSingleOfferDto) {
-        const { app_name, bundle_id, attribution_type, attribution_link } =
-            body;
+        const {
+            app_name,
+            bundle_id,
+            attribution_type,
+            attribution_link,
+            offer_group_id,
+            affiliate_network_id,
+        } = body;
 
         const offerName = `${attribution_type} ${bundle_id} (${app_name})`;
+        const defaultAffiliateNetworkId =
+            attribution_type === "affise" ? 596 : 443;
         const offerParams = this.buildOfferParams({
             name: offerName,
             action_payload: attribution_link,
-            affiliate_network_id: attribution_type === "affise" ? 596 : 443,
-            group_id: 10,
+            affiliate_network_id:
+                affiliate_network_id || defaultAffiliateNetworkId,
+            group_id: offer_group_id || 10,
         });
 
         return await this.keitaroService.createOffer(offerParams);

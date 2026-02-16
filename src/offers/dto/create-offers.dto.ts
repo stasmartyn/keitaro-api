@@ -50,6 +50,11 @@ export class CreateMultipleOffersDto {
 
     @IsNotEmpty()
     lands: Record<string, string>;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    rate?: string;
 }
 
 export class CreateSingleOfferDto {
@@ -68,6 +73,14 @@ export class CreateSingleOfferDto {
     @IsString()
     @IsNotEmpty()
     attribution_link: string;
+
+    @IsOptional()
+    @IsNumber()
+    offer_group_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    affiliate_network_id?: number;
 }
 
 export class CreateSingleOfferAppLinkDto {

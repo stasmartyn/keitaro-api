@@ -15,6 +15,14 @@ export class NamingItemDto {
 
     @IsNumber()
     targetCampaignId: number;
+
+    @IsOptional()
+    @IsNumber()
+    keitaroCampaign?: number;
+
+    @IsOptional()
+    @IsNumber()
+    oldKeitaroCampaign?: number;
 }
 
 export class ShareNamingDto {

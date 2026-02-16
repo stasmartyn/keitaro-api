@@ -253,6 +253,32 @@ export const orgStreamParams = (
     }));
 };
 
+/** iOS forced stream payload (app_install_data_filter_new). Reused in noOrgStreamParams and create-empty-campaign. */
+export const getIosForcedStreamPayload = () => ({
+    type: "forced",
+    name: "forced",
+    position: 1,
+    weight: 0,
+    action_options: {},
+    comments: "",
+    state: "active",
+    action_type: "http",
+    action_payload: "",
+    schema: "landings",
+    collect_clicks: true,
+    filter_or: true,
+    filters: [
+        {
+            name: "app_install_data_filter_new",
+            mode: "reject",
+            payload: "Lead",
+        },
+    ],
+    triggers: [],
+    landings: [],
+    offers: [],
+});
+
 export const noOrgStreamParams = (
     isIos: boolean,
     testFlowOfferId: number = 3412,
@@ -308,30 +334,7 @@ export const noOrgStreamParams = (
     ];
 
     if (isIos) {
-        streams.unshift({
-            type: "forced",
-            name: "forced",
-            position: 1,
-            weight: 0,
-            action_options: {},
-            comments: "",
-            state: "active",
-            action_type: "http",
-            action_payload: "",
-            schema: "landings",
-            collect_clicks: true,
-            filter_or: true,
-            filters: [
-                {
-                    name: "app_install_data_filter_new",
-                    mode: "reject",
-                    payload: "Lead",
-                },
-            ],
-            triggers: [],
-            landings: [],
-            offers: [],
-        });
+        streams.unshift(getIosForcedStreamPayload());
     }
 
     return streams.map((stream, index) => ({
