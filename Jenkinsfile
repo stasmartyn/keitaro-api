@@ -61,10 +61,12 @@ pipeline {
                         env.IMAGE_TAG = 'prod'
                         env.DEPLOY_ENV = 'production'
                         env.COMPOSE_FILE = 'docker-compose.prod.yml'
+                        env.COMPOSE_PROJECT = 'keitaro_api_ts_prod'
                     } else if (env.BUILD_BRANCH == 'dev') {
                         env.IMAGE_TAG = 'dev'
                         env.DEPLOY_ENV = 'development'
                         env.COMPOSE_FILE = 'docker-compose.dev.yml'
+                        env.COMPOSE_PROJECT = 'keitaro_api_ts_dev'
                     } else {
                         echo "No building job for branch: ${env.BUILD_BRANCH}"
                     }
@@ -122,6 +124,7 @@ pipeline {
                                 export SERVICE="${SERVICE}"
                                 export IMAGE_TAG="${IMAGE_TAG}"
                                 export COMPOSE_FILE="${COMPOSE_FILE}"
+                                export COMPOSE_PROJECT="${env.COMPOSE_PROJECT}"
 
                                 cd ${DEPLOY_PATH}
 
@@ -132,7 +135,7 @@ pipeline {
                                 docker compose -f ${COMPOSE_FILE} down || true
 
                                 echo "Starting services with docker compose..."
-                                docker compose -f ${COMPOSE_FILE} up -d
+                                docker compose -f ${COMPOSE_FILE} -p ${COMPOSE_PROJECT} up -d
 
                                 echo "Pruning dangling images..."
                                 docker image prune -f || true
