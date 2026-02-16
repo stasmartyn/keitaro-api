@@ -317,6 +317,7 @@ export class AppsService {
                 naming: item.naming,
                 targetCampaignId: item.targetCampaignId,
                 keitaroCampaign: item.keitaroCampaign, // Передаємо keitaroCampaign для кожного naming
+                oldKeitaroCampaign: item.oldKeitaroCampaign, // Передаємо стару кампанію для міграції stream
             })),
         };
 

@@ -326,6 +326,7 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                 streamCampaignId,
                 item.naming,
                 item.targetCampaignId,
+                item.oldKeitaroCampaign, // Передаємо стару кампанію для міграції stream
             );
 
             if (

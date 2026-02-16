@@ -7,6 +7,7 @@ export interface NamingItem {
     naming: string;
     targetCampaignId: number;
     keitaroCampaign?: number; // Кампанія, в якій має бути stream (naming.keitaroCampaign з CRM)
+    oldKeitaroCampaign?: number; // Стара кампанія для міграції stream (якщо keitaroCampaign змінився)
 }
 
 export interface NamingSharingJobData {

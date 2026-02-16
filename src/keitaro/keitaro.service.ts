@@ -1007,6 +1007,7 @@ export class KeitaroService {
         campaignId: number,
         naming: string,
         targetCampaignId: number,
+        oldCampaignId?: number | null, // Стара кампанія для міграції stream
     ): Promise<{
         created: number;
         updated: number;
@@ -1068,9 +1069,38 @@ export class KeitaroService {
 
             // find() достатньо ефективний для одного пошуку (5-10k записів за мілісекунди)
             // Map був би корисний тільки якщо потрібно багато разів працювати з даними
-            const existingStream = streams.find(
-                (s) => s.name === streamName,
-            ) as RegularStream | undefined;
+            let existingStream = streams.find((s) => s.name === streamName) as
+                | RegularStream
+                | undefined;
+
+            // Якщо stream не знайдено в новій кампанії, але є oldCampaignId - шукаємо в старій кампанії
+            if (
+                !existingStream &&
+                oldCampaignId &&
+                oldCampaignId !== campaignId
+            ) {
+                Logger.info(
+                    `Stream "${streamName}" not found in campaign ${campaignId}. Searching in old campaign ${oldCampaignId}...`,
+                    undefined,
+                    "KeitaroService.shareNaming",
+                );
+                const oldStreams = await this.getCampaignStreams(oldCampaignId);
+                existingStream = oldStreams.find(
+                    (s) => s.name === streamName,
+                ) as RegularStream | undefined;
+
+                if (existingStream) {
+                    Logger.warn(
+                        `Stream "${streamName}" found in old campaign ${oldCampaignId} (id: ${existingStream.id}). Will migrate to new campaign ${campaignId}.`,
+                        {
+                            streamId: existingStream.id,
+                            oldCampaignId,
+                            newCampaignId: campaignId,
+                        },
+                        "KeitaroService.shareNaming",
+                    );
+                }
+            }
 
             if (existingStream) {
                 // Перевіряємо, чи stream в правильній кампанії

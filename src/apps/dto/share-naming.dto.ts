@@ -19,6 +19,10 @@ export class NamingItemDto {
     @IsOptional()
     @IsNumber()
     keitaroCampaign?: number;
+
+    @IsOptional()
+    @IsNumber()
+    oldKeitaroCampaign?: number;
 }
 
 export class ShareNamingDto {
