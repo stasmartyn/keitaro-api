@@ -279,14 +279,18 @@ export class KeitaroService {
     async createDomain(domain: string, groupId: number, oneLinkSettings: any) {
         try {
             const url = this.buildUrl("admin_api/v1/domains");
+            const parsedSettings =
+                typeof oneLinkSettings === "string"
+                    ? JSON.parse(oneLinkSettings)
+                    : oneLinkSettings || {};
             const params = {
                 name: domain,
-                group_id: String(groupId),
+                group_id: groupId,
                 ssl_redirect: true,
                 allow_indexing: false,
                 admin_dashboard: false,
-                catch_not_found: oneLinkSettings?.catch_not_found || false,
-                default_campaign_id: oneLinkSettings?.default_campaign_id || 0,
+                catch_not_found: parsedSettings?.catch_not_found || false,
+                default_campaign_id: parsedSettings?.default_campaign_id || 0,
             };
 
             const response = await axios.post(url, params, {
