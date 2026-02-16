@@ -22,10 +22,6 @@ export async function withRetry<T>(
             lastError = error;
 
             if (attempt === maxAttempts) {
-                Logger.error(
-                    `All ${maxAttempts} retry attempts failed`,
-                    "RetryUtil",
-                );
                 throw error;
             }
 

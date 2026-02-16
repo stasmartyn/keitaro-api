@@ -13,6 +13,9 @@ import { KeitaroModule } from "../keitaro/keitaro.module";
 import { OffersModule } from "../offers/offers.module";
 import { ReportModule } from "../report/report.module";
 import { FailoverModule } from "../failover/failover.module";
+import { RedisModule } from "../redis/redis.module";
+import { DatabaseModule } from "../database/database.module";
+import { QueueModule } from "../queue/queue.module";
 
 @Module({
     imports: [
@@ -20,6 +23,9 @@ import { FailoverModule } from "../failover/failover.module";
             isGlobal: true,
             load: [configuration],
         }),
+        DatabaseModule,
+        RedisModule,
+        QueueModule,
         AppsModule,
         GroupsModule,
         DomainsModule,

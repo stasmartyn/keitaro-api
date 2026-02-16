@@ -15,6 +15,7 @@ import { Model } from "mongoose";
 import { IosAppDocument } from "../../database/schemas/ios-app.model";
 import { AndroidAppDocument } from "../../database/schemas/android-app.model";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
+import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
@@ -23,12 +24,14 @@ import { UpdateCampaignDto } from "../dto/update-campaign.dto";
 import { SyncAppDto } from "../dto/sync-app.dto";
 import { CloseCloakDto } from "../dto/close-cloak.dto";
 import { CloseGeoDto } from "../dto/close-geo.dto";
-import { ShareNamingDto } from "../dto/share-naming.dto";
+import { ShareNamingDto, NamingItemDto } from "../dto/share-naming.dto";
 import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
+import { QueueService } from "../../queue/queue.service";
+import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
 
 @Injectable()
 export class AppsService {
@@ -36,6 +39,7 @@ export class AppsService {
         private readonly keitaroClient: KeitaroService,
         private readonly campaignDataService: CampaignDataService,
         private readonly configService: ConfigService,
+        private readonly queueService: QueueService,
         @Inject(ProvidersDB.CAMPAIGN_USER)
         private readonly campaignUserModel: Model<CampaignUserDocument>,
         @Inject(ProvidersDB.IOS_APP)
@@ -117,6 +121,19 @@ export class AppsService {
         );
 
         return createByOfferWithErrorHandler(body);
+    }
+
+    async createEmptyCampaign(body: CreateEmptyCampaignDto) {
+        const createEmptyCampaignWithErrorHandler = wrapWithErrorHandler(
+            this.createEmptyCampaignInternal.bind(this),
+            {
+                functionName: "AppsService.createEmptyCampaign",
+                additionalData: {
+                    endpoint: "POST /v1/apps/create-empty-campaign",
+                },
+            },
+        );
+        return createEmptyCampaignWithErrorHandler(body);
     }
 
     async createOnelinkCampaign(body: CreateOnelinkCampaignDto) {
@@ -260,17 +277,110 @@ export class AppsService {
     }
 
     async shareNaming(body: ShareNamingDto) {
-        const shareNamingWithErrorHandler = wrapWithErrorHandler(
-            this.shareNamingInternal.bind(this),
-            {
-                functionName: "AppsService.shareNaming",
-                additionalData: {
-                    endpoint: "POST /v1/apps/share-naming",
-                },
-            },
-        );
+        const { campaignId, appId, items } = body;
 
-        return shareNamingWithErrorHandler(body);
+        if (!campaignId || !items || items.length === 0) {
+            return {
+                success: false,
+                error: "Validation failed",
+                message: "campaignId and items array are required",
+            };
+        }
+
+        if (items.length > 10) {
+            return {
+                success: false,
+                error: "Batch size exceeded",
+                message: "Maximum 10 items per batch",
+                received: items.length,
+            };
+        }
+
+        const uniqueItemsMap = new Map<string, NamingItemDto>();
+        const duplicates: string[] = [];
+
+        for (const item of items) {
+            if (uniqueItemsMap.has(item.naming)) {
+                duplicates.push(item.naming);
+                uniqueItemsMap.set(item.naming, item);
+            } else {
+                uniqueItemsMap.set(item.naming, item);
+            }
+        }
+
+        const uniqueItems = Array.from(uniqueItemsMap.values());
+
+        if (duplicates.length > 0) {
+            Logger.warn(
+                `Duplicate naming items found and deduplicated: ${duplicates.join(", ")}. Using the last value for each duplicate.`,
+                {
+                    campaignId,
+                    appId,
+                    duplicates,
+                    originalCount: items.length,
+                    uniqueCount: uniqueItems.length,
+                },
+                "AppsService.shareNaming",
+            );
+        }
+
+        const jobData: NamingSharingJobData = {
+            campaignId,
+            appId,
+            items: uniqueItems.map((item) => ({
+                naming: item.naming,
+                targetCampaignId: item.targetCampaignId,
+                keitaroCampaign: item.keitaroCampaign, // Передаємо keitaroCampaign для кожного naming
+                oldKeitaroCampaign: item.oldKeitaroCampaign, // Передаємо стару кампанію для міграції stream
+            })),
+        };
+
+        try {
+            const queue = this.queueService.getNamingSharingQueue();
+            const job = await queue.add("process-naming-batch", jobData);
+
+            Logger.info(
+                `Naming sharing job added: ${job.id} for ${uniqueItems.length} unique namings (${items.length} original, ${duplicates.length} duplicates removed)`,
+                {
+                    campaignId,
+                    appId,
+                    itemsCount: uniqueItems.length,
+                    originalCount: items.length,
+                    duplicatesCount: duplicates.length,
+                    namings: uniqueItems.map((i) => i.naming),
+                },
+                "AppsService.shareNaming",
+            );
+
+            return {
+                success: true,
+                jobId: job.id,
+                queue: "naming-sharing",
+                campaignId,
+                appId,
+                itemsCount: uniqueItems.length,
+                originalItemsCount: items.length,
+                duplicatesRemoved: duplicates.length,
+                items: uniqueItems,
+                message:
+                    duplicates.length > 0
+                        ? `Naming sharing job added to queue successfully. ${duplicates.length} duplicate(s) removed (using last value for each).`
+                        : "Naming sharing job added to queue successfully",
+            };
+        } catch (error) {
+            Logger.error(
+                `Failed to add naming sharing job: ${error instanceof Error ? error.message : "Unknown error"}`,
+                error instanceof Error ? error.stack : undefined,
+                "AppsService.shareNaming",
+            );
+
+            return {
+                success: false,
+                error: "Failed to add job to queue",
+                message:
+                    error instanceof Error ? error.message : "Unknown error",
+            };
+        }
     }
 
     async allowAllTraffic(body: AllowTrafficDto) {
@@ -648,6 +758,76 @@ export class AppsService {
         return { ...result, alias };
     }
 
+    private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
+        const { buyer, sub } = body;
+        if (!buyer || !sub) {
+            throw new BadRequestException("Missing required fields.");
+        }
+
+        const nodeEnv = this.configService.get<string>("NODE_ENV");
+        const templateId =
+            nodeEnv === "production"
+                ? this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdProd",
+                  )
+                : this.configService.get<number>(
+                      "keitaro.emptyCampaignTemplateIdDev",
+                  );
+        if (!templateId) {
+            throw new BadRequestException(
+                `Empty campaign template not configured for NODE_ENV=${nodeEnv}. Set EMPTY_CAMPAIGN_TEMPLATE_ID_DEV and EMPTY_CAMPAIGN_TEMPLATE_ID_PROD.`,
+            );
+        }
+
+        let alias = this.generateUniqueAlias();
+        let copiedCampaign: ICampaign;
+
+        while (true) {
+            try {
+                const copyResult =
+                    await this.keitaroClient.copyCampaign(templateId);
+                if (
+                    !copyResult ||
+                    !Array.isArray(copyResult) ||
+                    copyResult.length === 0
+                ) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Invalid response from Keitaro API.",
+                    );
+                }
+                copiedCampaign = copyResult[0];
+                if (!copiedCampaign?.id) {
+                    throw new BadRequestException(
+                        "Failed to copy campaign. Copied campaign data is invalid.",
+                    );
+                }
+
+                await this.keitaroClient.updateCampaign(copiedCampaign.id, {
+                    name: `${alias} ${buyer} (${sub}) SION Apps`,
+                    alias,
+                });
+                break;
+            } catch (error) {
+                if (error?.response?.data?.alias?.length) {
+                    alias = this.generateUniqueAlias();
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        const campaignId = copiedCampaign.id;
+        const campaignName = `${alias} ${buyer} (${sub}) SION Apps`;
+        const campaignAlias = alias;
+
+        return {
+            name: campaignName,
+            alias: campaignAlias,
+            id: campaignId,
+            token: copiedCampaign.token,
+        };
+    }
+
     private async copyCampaignInternal(body: CopyCampaignDto) {
         const { id, group_id, name, sub_id, change_parameters } = body;
 
@@ -967,24 +1147,6 @@ export class AppsService {
         }
 
         return await this.keitaroClient.closeGeo(campaignId, geoCode);
-    }
-
-    private async shareNamingInternal(body: ShareNamingDto) {
-        const { campaignId, naming, keitaroCampaign, orgCampaignId } = body;
-
-        if (!campaignId || !naming || orgCampaignId === undefined) {
-            throw new BadRequestException(
-                "Missing required fields: campaignId, naming, orgCampaignId",
-            );
-        }
-
-        const targetCampaignId = keitaroCampaign ?? orgCampaignId;
-
-        return await this.keitaroClient.shareNaming(
-            campaignId,
-            naming,
-            targetCampaignId,
-        );
     }
 
     private async toggleTestFlowInternal(body: ToggleTestFlowDto) {

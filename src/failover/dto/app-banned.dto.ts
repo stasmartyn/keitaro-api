@@ -50,6 +50,8 @@ export class PreviewResponseDto {
         campaignId: number;
         configValid: boolean;
         configIssues?: string[];
+        /** Present when step 4 failed (e.g. stream not found 404) */
+        error?: string;
         currentOffer: {
             id: number;
             name: string;

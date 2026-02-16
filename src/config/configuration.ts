@@ -37,6 +37,14 @@ export default () => ({
             process.env.KEITARO_TEST_FLOW_OFFER_ID || "3412",
             10,
         ),
+        emptyCampaignTemplateIdDev: parseInt(
+            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_DEV,
+            10,
+        ),
+        emptyCampaignTemplateIdProd: parseInt(
+            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_PROD,
+            10,
+        ),
     },
     failover: {
         // Campaign Groups
@@ -70,6 +78,15 @@ export default () => ({
     database: {
         dev_uri: process.env.MONGO_DATABASE_URI_DEV,
         prod_uri: process.env.MONGO_DATABASE_URI,
+    },
+    redis: {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        db: parseInt(process.env.REDIS_DB, 10) || 0,
+        tls: process.env.REDIS_TLS === "true",
+        username: process.env.REDIS_USERNAME || undefined,
+        url: process.env.REDIS_URL || undefined,
     },
     telegram: {
         botToken: process.env.TELEGRAM_BOT_TOKEN,

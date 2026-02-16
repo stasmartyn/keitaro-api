@@ -38,4 +38,6 @@ export interface StreamResult {
     currentOfferDetails: any;
     willReplaceOffer: boolean;
     replacementOffer: any;
+    /** Set when step 4 failed (e.g. stream 404) after retries */
+    error?: string;
 }

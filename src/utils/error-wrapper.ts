@@ -71,15 +71,17 @@ export function wrapWithErrorHandler<T extends any[], R>(
             }
 
             if (error instanceof AxiosError) {
+                const originalStatus =
+                    error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
                 const httpError = new HttpException(
                     {
                         message: errorMessage,
                         functionName: functionNameOnly,
                         requestUrl,
                         error: error.response?.data || error.message,
-                        statusCode: error.response?.status || 500,
+                        statusCode: originalStatus,
                     },
-                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    originalStatus,
                 );
 
                 throw httpError;

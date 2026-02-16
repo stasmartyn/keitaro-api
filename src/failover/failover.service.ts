@@ -115,13 +115,30 @@ export class FailoverService {
             execute,
         );
 
-        const streamResult = await this.executeStep4Stream(
-            platform,
-            appId,
-            config,
-            offerResult.bannedOfferIds,
-            execute,
-        );
+        let streamResult: StreamResult;
+        try {
+            streamResult = await this.executeStep4Stream(
+                platform,
+                appId,
+                config,
+                offerResult.bannedOfferIds,
+                execute,
+            );
+        } catch (err) {
+            const message =
+                err?.message ?? err?.toString?.() ?? "Unknown error";
+            Logger.error(
+                `Step 4 (stream) failed after retries: ${message}`,
+                "FailoverService",
+            );
+            streamResult = {
+                configIssues: [],
+                currentOfferDetails: null,
+                willReplaceOffer: false,
+                replacementOffer: null,
+                error: message,
+            };
+        }
 
         // Calculate total operations
         const totalOperations =
@@ -155,6 +172,7 @@ export class FailoverService {
                 ...(streamResult.configIssues.length > 0 && {
                     configIssues: streamResult.configIssues,
                 }),
+                ...(streamResult.error && { error: streamResult.error }),
                 currentOffer: streamResult.currentOfferDetails
                     ? {
                           id: streamResult.currentOfferDetails.id,
