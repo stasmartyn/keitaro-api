@@ -519,10 +519,19 @@ export class AppsService {
     private async createOnelinkCampaignInternal(
         body: CreateOnelinkCampaignDto,
     ) {
-        const { offer_id, bundle_id, app_name } = body;
+        const {
+            offer_id,
+            bundle_id,
+            app_name,
+            onelink_landing_id,
+            campaign_group_id,
+        } = body;
         if (!offer_id || !bundle_id || !app_name) {
             throw new BadRequestException("Missing required fields.");
         }
+
+        const landingId = onelink_landing_id || 363;
+        const groupId = campaign_group_id || 40;
 
         const alias = this.generateUniqueAlias();
         while (true) {
@@ -530,7 +539,7 @@ export class AppsService {
                 name: `Onelink ${bundle_id} (${app_name})`,
                 alias,
                 traffic_source_id: 0,
-                group_id: 40,
+                group_id: groupId,
             };
 
             const createCampaignResponse: ICampaign =
@@ -555,11 +564,9 @@ export class AppsService {
                 triggers: [],
                 landings: [
                     {
-                        landing_id: 363,
+                        landing_id: landingId,
                         state: "active",
                         share: 100,
-                        created_at: "2025-05-14 15:31:25",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
                 offers: [
@@ -567,8 +574,6 @@ export class AppsService {
                         offer_id: Number(offer_id),
                         state: "active",
                         share: 100,
-                        created_at: "2025-06-12 07:53:37",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
             };
