@@ -48,4 +48,21 @@ export class NamingSharingProgressGateway
     sendProgress(progress: NamingSharingProgress) {
         this.server.emit("progress", progress);
     }
+
+    sendComplete(complete: {
+        jobId: string;
+        total: number;
+        success: number;
+        failed: number;
+        results?: Array<{
+            naming: string;
+            success: boolean;
+            created?: number;
+            updated?: number;
+            skipped?: number;
+            error?: string;
+        }>;
+    }) {
+        this.server.emit("complete", complete);
+    }
 }

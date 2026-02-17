@@ -43,6 +43,14 @@ export interface BatchResult {
         campaignId: number;
         targetCampaignId: number;
     }>;
+    results: Array<{
+        naming: string;
+        success: boolean;
+        created?: number;
+        updated?: number;
+        skipped?: number;
+        error?: string;
+    }>;
 }
 
 /**

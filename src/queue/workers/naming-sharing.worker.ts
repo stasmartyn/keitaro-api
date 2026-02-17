@@ -154,6 +154,14 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         let totalSuccess = 0;
         let totalFailed = 0;
         const allErrors: BatchResult["errors"] = [];
+        const allResults: Array<{
+            naming: string;
+            success: boolean;
+            created?: number;
+            updated?: number;
+            skipped?: number;
+            error?: string;
+        }> = [];
 
         // Оновлюємо прогрес job, щоб BullMQ знав, що job ще обробляється
         await job.updateProgress(0);
@@ -184,6 +192,7 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             totalSuccess += batchResult.success;
             totalFailed += batchResult.failed;
             allErrors.push(...batchResult.errors);
+            allResults.push(...batchResult.results);
 
             Logger.info(
                 `Batch ${batchNumber}/${totalBatches} completed: ${batchResult.success} success, ${batchResult.failed} failed`,
@@ -256,6 +265,15 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             // Не кидаємо помилку - завершуємо job як успішний, але з інформацією про failed items
             // Це дозволяє worker продовжувати працювати і не падати
             // Failed items будуть показані в результаті job через WebSocket
+
+            // Відправляємо complete event з усіма результатами (включаючи failed)
+            this.progressGateway.sendComplete({
+                jobId: job.id!,
+                total: totalItems,
+                success: totalSuccess,
+                failed: totalFailed,
+                results: allResults,
+            });
             return;
         }
 
@@ -264,6 +282,15 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             undefined,
             "NamingSharingWorker",
         );
+
+        // Відправляємо complete event з усіма результатами
+        this.progressGateway.sendComplete({
+            jobId: job.id!,
+            total: totalItems,
+            success: totalSuccess,
+            failed: totalFailed,
+            results: allResults,
+        });
     }
 
     private async processBatch(
@@ -272,14 +299,21 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
     ): Promise<BatchResult> {
         // Обробляємо послідовно, щоб уникнути race condition з position
         // Це відповідає поведінці старого методу shareNaming
-        const results: PromiseSettledResult<void>[] = [];
+        const results: PromiseSettledResult<{
+            created: number;
+            updated: number;
+            skipped: number;
+        }>[] = [];
 
         for (const item of batch) {
             try {
-                await this.shareNamingWithRetry(item, campaignId);
+                const result = await this.shareNamingWithRetry(
+                    item,
+                    campaignId,
+                );
                 results.push({
                     status: "fulfilled" as const,
-                    value: undefined,
+                    value: result,
                 });
             } catch (error) {
                 results.push({
@@ -292,41 +326,63 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         const success = results.filter((r) => r.status === "fulfilled").length;
         const failed = results.filter((r) => r.status === "rejected").length;
         const errors: BatchResult["errors"] = [];
+        const batchResults: BatchResult["results"] = [];
 
         results.forEach((result, index) => {
-            if (result.status === "rejected") {
+            const item = batch[index];
+            if (result.status === "fulfilled") {
+                const value = result.value;
+                batchResults.push({
+                    naming: item.naming,
+                    success: true,
+                    created: value.created,
+                    updated: value.updated,
+                    skipped: value.skipped,
+                });
+            } else {
+                const errorMessage =
+                    result.reason?.message || String(result.reason);
                 errors.push({
-                    naming: batch[index].naming,
-                    error: result.reason?.message || String(result.reason),
+                    naming: item.naming,
+                    error: errorMessage,
                     campaignId,
-                    targetCampaignId: batch[index].targetCampaignId,
+                    targetCampaignId: item.targetCampaignId,
+                });
+                batchResults.push({
+                    naming: item.naming,
+                    success: false,
+                    error: errorMessage,
                 });
             }
         });
 
-        return { success, failed, errors };
+        return { success, failed, errors, results: batchResults };
     }
 
     private async shareNamingWithRetry(
         item: NamingItem,
         campaignId: number,
-    ): Promise<void> {
+    ): Promise<{
+        created: number;
+        updated: number;
+        skipped: number;
+    }> {
         try {
-            // Використовуємо keitaroCampaign з naming, якщо він є, інакше використовуємо campaignId (appCampaignId)
-            // Це дозволяє правильно знаходити stream, навіть якщо naming.keitaroCampaign змінився в CRM
-            const streamCampaignId = item.keitaroCampaign || campaignId;
+            // Stream ЗАВЖДИ створюється в APP кампанії (campaignId), незалежно від keitaroCampaign
+            // keitaroCampaign використовується тільки для міграції stream, якщо він змінився
+            const streamCampaignId = campaignId; // Завжди APP кампанія
 
             Logger.info(
-                `Sharing naming "${item.naming}": using campaignId=${streamCampaignId} (from naming.keitaroCampaign=${item.keitaroCampaign || "not set"}, fallback to appCampaignId=${campaignId}), targetCampaignId=${item.targetCampaignId}`,
+                `Sharing naming "${item.naming}": stream will be created in APP campaign ${streamCampaignId}, will redirect to ${item.targetCampaignId} (buyer/org campaign), keitaroCampaign from naming=${item.keitaroCampaign || "not set"}`,
                 undefined,
                 "NamingSharingWorker.shareNamingWithRetry",
             );
 
             const result = await this.keitaroService.shareNaming(
-                streamCampaignId,
+                streamCampaignId, // APP кампанія - де створюється stream
                 item.naming,
-                item.targetCampaignId,
-                item.oldKeitaroCampaign, // Передаємо стару кампанію для міграції stream
+                item.targetCampaignId, // Байерська або ORG кампанія - куди редіректить
+                item.oldKeitaroCampaign, // Стара кампанія для міграції stream
             );
 
             if (
@@ -336,6 +392,12 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             ) {
                 throw new Error("Share naming returned no result");
             }
+
+            return {
+                created: result.created,
+                updated: result.updated,
+                skipped: result.skipped,
+            };
         } catch (error) {
             const errorMessage =
                 error instanceof Error
