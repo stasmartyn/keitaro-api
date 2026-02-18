@@ -14,6 +14,7 @@ import {
     NamingItem,
     BATCH_SIZE,
     BatchResult,
+    NamingSharingResult,
 } from "../queues/naming-sharing.types";
 import { NamingSharingProgressGateway } from "../gateways/naming-sharing-progress.gateway";
 
@@ -154,14 +155,7 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         let totalSuccess = 0;
         let totalFailed = 0;
         const allErrors: BatchResult["errors"] = [];
-        const allResults: Array<{
-            naming: string;
-            success: boolean;
-            created?: number;
-            updated?: number;
-            skipped?: number;
-            error?: string;
-        }> = [];
+        const allResults: NamingSharingResult[] = [];
 
         // Оновлюємо прогрес job, щоб BullMQ знав, що job ще обробляється
         await job.updateProgress(0);
@@ -192,7 +186,9 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             totalSuccess += batchResult.success;
             totalFailed += batchResult.failed;
             allErrors.push(...batchResult.errors);
-            allResults.push(...batchResult.results);
+            if (batchResult.results) {
+                allResults.push(...batchResult.results);
+            }
 
             Logger.info(
                 `Batch ${batchNumber}/${totalBatches} completed: ${batchResult.success} success, ${batchResult.failed} failed`,
@@ -265,15 +261,13 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             // Не кидаємо помилку - завершуємо job як успішний, але з інформацією про failed items
             // Це дозволяє worker продовжувати працювати і не падати
             // Failed items будуть показані в результаті job через WebSocket
-
-            // Відправляємо complete event з усіма результатами (включаючи failed)
-            this.progressGateway.sendComplete({
-                jobId: job.id!,
-                total: totalItems,
-                success: totalSuccess,
-                failed: totalFailed,
-                results: allResults,
-            });
+            this.sendCompleteEvent(
+                job.id!,
+                totalItems,
+                totalSuccess,
+                totalFailed,
+                allResults,
+            );
             return;
         }
 
@@ -283,14 +277,13 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
             "NamingSharingWorker",
         );
 
-        // Відправляємо complete event з усіма результатами
-        this.progressGateway.sendComplete({
-            jobId: job.id!,
-            total: totalItems,
-            success: totalSuccess,
-            failed: totalFailed,
-            results: allResults,
-        });
+        this.sendCompleteEvent(
+            job.id!,
+            totalItems,
+            totalSuccess,
+            totalFailed,
+            allResults,
+        );
     }
 
     private async processBatch(
@@ -299,11 +292,12 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
     ): Promise<BatchResult> {
         // Обробляємо послідовно, щоб уникнути race condition з position
         // Це відповідає поведінці старого методу shareNaming
-        const results: PromiseSettledResult<{
+        type ShareNamingResult = {
             created: number;
             updated: number;
             skipped: number;
-        }>[] = [];
+        };
+        const results: PromiseSettledResult<ShareNamingResult>[] = [];
 
         for (const item of batch) {
             try {
@@ -341,7 +335,11 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                 });
             } else {
                 const errorMessage =
-                    result.reason?.message || String(result.reason);
+                    result.reason instanceof Error
+                        ? result.reason.message
+                        : result.reason
+                          ? String(result.reason)
+                          : "Unknown error";
                 errors.push({
                     naming: item.naming,
                     error: errorMessage,
@@ -368,9 +366,9 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
         skipped: number;
     }> {
         try {
-            // Stream ЗАВЖДИ створюється в APP кампанії (campaignId), незалежно від keitaroCampaign
-            // keitaroCampaign використовується тільки для міграції stream, якщо він змінився
-            const streamCampaignId = campaignId; // Завжди APP кампанія
+            // Stream завжди створюється в APP кампанії (campaignId)
+            // keitaroCampaign використовується лише для міграції stream при зміні кампанії
+            const streamCampaignId = campaignId;
 
             Logger.info(
                 `Sharing naming "${item.naming}": stream will be created in APP campaign ${streamCampaignId}, will redirect to ${item.targetCampaignId} (buyer/org campaign), keitaroCampaign from naming=${item.keitaroCampaign || "not set"}`,
@@ -407,5 +405,21 @@ export class NamingSharingWorker implements OnModuleInit, OnModuleDestroy {
                 `Failed to share naming "${item.naming}" to campaign ${item.targetCampaignId}: ${errorMessage}`,
             );
         }
+    }
+
+    private sendCompleteEvent(
+        jobId: string,
+        total: number,
+        success: number,
+        failed: number,
+        results: NamingSharingResult[],
+    ): void {
+        this.progressGateway.sendComplete({
+            jobId,
+            total,
+            success,
+            failed,
+            results,
+        });
     }
 }

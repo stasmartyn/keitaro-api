@@ -7,7 +7,10 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Logger } from "../../utils/logger";
-import { NamingSharingProgress } from "../queues/naming-sharing.types";
+import {
+    NamingSharingProgress,
+    NamingSharingResult,
+} from "../queues/naming-sharing.types";
 
 @WebSocketGateway({
     namespace: "/naming-sharing-progress",
@@ -54,14 +57,7 @@ export class NamingSharingProgressGateway
         total: number;
         success: number;
         failed: number;
-        results?: Array<{
-            naming: string;
-            success: boolean;
-            created?: number;
-            updated?: number;
-            skipped?: number;
-            error?: string;
-        }>;
+        results?: NamingSharingResult[];
     }) {
         this.server.emit("complete", complete);
     }

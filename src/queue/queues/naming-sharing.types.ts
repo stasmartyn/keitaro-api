@@ -32,6 +32,18 @@ export interface NamingSharingProgress {
 }
 
 /**
+ * Результат обробки одного naming item
+ */
+export interface NamingSharingResult {
+    naming: string;
+    success: boolean;
+    created?: number;
+    updated?: number;
+    skipped?: number;
+    error?: string;
+}
+
+/**
  * Результат обробки батча naming items
  */
 export interface BatchResult {
@@ -43,14 +55,7 @@ export interface BatchResult {
         campaignId: number;
         targetCampaignId: number;
     }>;
-    results: Array<{
-        naming: string;
-        success: boolean;
-        created?: number;
-        updated?: number;
-        skipped?: number;
-        error?: string;
-    }>;
+    results?: NamingSharingResult[];
 }
 
 /**
