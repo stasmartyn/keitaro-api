@@ -950,6 +950,27 @@ export class AppsService {
                     },
                     path: "admin_api/v1/streams",
                 },
+                {
+                    key: "appDefaultFlow",
+                    fn: async () => {
+                        // Створюємо/оновлюємо default flow в APP campaign з редиректом на ORG campaign
+                        const res =
+                            await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+                                result.cloCampaign.campaignId,
+                                result.orgCampaign.campaignId,
+                            );
+                        Logger.info(
+                            `Default flow configured for APP campaign ${result.cloCampaign.campaignId} to redirect to ORG campaign ${result.orgCampaign.campaignId}`,
+                            {
+                                appCampaignId: result.cloCampaign.campaignId,
+                                orgCampaignId: result.orgCampaign.campaignId,
+                            },
+                            "AppsService.createAppInternal",
+                        );
+                        return res;
+                    },
+                    path: "admin_api/v1/streams",
+                },
             ];
 
             for (const step of steps) {
@@ -1085,7 +1106,10 @@ export class AppsService {
             throw new BadRequestException("Missing required field: campaignId");
         }
 
-        return await this.keitaroClient.validateIntegration(campaignId);
+        return await this.keitaroClient.validateIntegration(
+            campaignId,
+            body.appId,
+        );
     }
 
     private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
