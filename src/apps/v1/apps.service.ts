@@ -759,7 +759,7 @@ export class AppsService {
     }
 
     private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
-        const { buyer, sub } = body;
+        const { buyer, sub, group_id } = body;
         if (!buyer || !sub) {
             throw new BadRequestException("Missing required fields.");
         }
@@ -802,9 +802,20 @@ export class AppsService {
                     );
                 }
 
+                const updatedParams = {
+                    ...copiedCampaign.parameters,
+                    sub_id_15: {
+                        name: "user_id",
+                        placeholder: sub,
+                        alias: "",
+                    },
+                };
+
                 await this.keitaroClient.updateCampaign(copiedCampaign.id, {
                     name: `${alias} ${buyer} (${sub}) SION Apps`,
                     alias,
+                    group_id: Number(group_id),
+                    parameters: updatedParams,
                 });
                 break;
             } catch (error) {

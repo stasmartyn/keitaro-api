@@ -8,4 +8,8 @@ export class CreateEmptyCampaignDto {
     @IsString()
     @IsNotEmpty()
     buyer: string;
+
+    @IsString()
+    @IsNotEmpty()
+    group_id: string;
 }
