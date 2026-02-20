@@ -14,7 +14,7 @@ export const indexProviders = [
         provide: ProvidersDB.CAMPAIGN_USER,
         useFactory: (connection: Connection) =>
             connection.model(ModelDB.CampaignUser, CampaignUserSchema),
-        inject: [ConnectionDB.DATABASE_CONNECTION],
+        inject: [ConnectionDB.CAMPAIGN_USERS_DATABASE_CONNECTION],
     },
     {
         provide: ProvidersDB.IOS_APP,

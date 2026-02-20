@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 import { ICampaignUser } from "./interfaces/campaign-user.interface";
 
-@Schema({ timestamps: true, collection: "campaignUser" })
+@Schema({ timestamps: true, collection: "campaignUsers" })
 export class CampaignUser implements ICampaignUser {
     @Prop({ type: String, default: null })
     nickName: string | null;
