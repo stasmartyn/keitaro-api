@@ -822,10 +822,12 @@ export class KeitaroService {
      * Створює або оновлює default flow в APP campaign з редиректом на ORG campaign
      * @param appCampaignId - ID APP campaign
      * @param orgCampaignId - ID ORG campaign для редиректу
+     * @param redirectToOrg - чи перенаправляти на ORG (true) або do_nothing (false)
      */
     async updateDefaultFlowWithOrgCampaign(
         appCampaignId: number,
         orgCampaignId: number,
+        redirectToOrg: boolean = true,
     ): Promise<any> {
         try {
             Logger.info(
@@ -840,10 +842,21 @@ export class KeitaroService {
             // Шукаємо default flow
             const defaultFlow = streams.find((s) => s.type === "default");
 
+            // Назва default flow завжди має бути "default" - це стандартна назва для fallback flow
+            // Тип stream: "default" (правильно)
+            // Назва stream: "default" (правильно - це останній fallback flow)
+            const defaultFlowName = KeitaroService.STREAM_NAMES.DEFAULT;
+
+            Logger.info(
+                `[updateDefaultFlowWithOrgCampaign] Using default flow name: ${defaultFlowName}`,
+                { defaultFlowName },
+                "KeitaroService.updateDefaultFlowWithOrgCampaign",
+            );
+
             const defaultFlowData = {
                 type: "default",
-                action_type: "campaign",
-                action_payload: orgCampaignId.toString(),
+                action_type: redirectToOrg ? "campaign" : "do_nothing",
+                action_payload: redirectToOrg ? orgCampaignId.toString() : "",
                 schema: "action",
                 state: "active",
                 collect_clicks: true,
@@ -867,8 +880,11 @@ export class KeitaroService {
                 );
 
                 const updated = await this.updateStream(defaultFlow.id, {
-                    action_type: "campaign",
-                    action_payload: orgCampaignId.toString(),
+                    name: defaultFlowName,
+                    action_type: redirectToOrg ? "campaign" : "do_nothing",
+                    action_payload: redirectToOrg
+                        ? orgCampaignId.toString()
+                        : "",
                     state: "active",
                 });
 
@@ -899,7 +915,7 @@ export class KeitaroService {
 
                 const created = await this.createStream(appCampaignId, {
                     ...defaultFlowData,
-                    name: KeitaroService.STREAM_NAMES.DEFAULT,
+                    name: defaultFlowName,
                     position: maxPosition + 1,
                 });
 
@@ -2025,7 +2041,6 @@ export class KeitaroService {
 
     private async validateIntegrationInternal(
         campaignId: number,
-        appId?: string,
     ): Promise<any> {
         try {
             const issues: any[] = [];
@@ -2201,15 +2216,8 @@ export class KeitaroService {
             );
             this.validateNamingFlows(namingFlows, campaignId, issues);
 
-            // 7.1. Перевірка на видалені, змінені та зайві naming flows (якщо передано appId)
-            if (appId) {
-                await this.checkDeletedNamingFlows(
-                    namingFlows,
-                    appId,
-                    warnings,
-                    issues,
-                );
-            }
+            // 7.1. Перевірка naming flows тепер виконується в tbapptech-crm-api
+            // (не передаємо appId в keitaro_api_ts, щоб уникнути HTTP запитів між сервісами)
 
             // 8. Перевірка на зайві streams
             this.checkExtraStreams(streams, warnings);
@@ -2269,17 +2277,11 @@ export class KeitaroService {
         }
     }
 
-    async validateIntegration(
-        campaignId: number,
-        appId?: string,
-    ): Promise<any> {
-        return this.ensureAndValidateIntegration(campaignId, appId);
+    async validateIntegration(campaignId: number): Promise<any> {
+        return this.ensureAndValidateIntegration(campaignId);
     }
 
-    async ensureAndValidateIntegration(
-        campaignId: number,
-        appId?: string,
-    ): Promise<any> {
+    async ensureAndValidateIntegration(campaignId: number): Promise<any> {
         try {
             Logger.info(
                 `Starting validateIntegration for campaign ${campaignId}`,
@@ -2299,10 +2301,8 @@ export class KeitaroService {
             );
 
             // Перевіряємо інтеграцію
-            const validationResult = await this.validateIntegrationInternal(
-                campaignId,
-                appId,
-            );
+            const validationResult =
+                await this.validateIntegrationInternal(campaignId);
 
             // Формуємо fixed items (створені streams)
             const fixedFromCreatedStreams = createdStreams.map((stream) => ({
@@ -2369,6 +2369,9 @@ export class KeitaroService {
             issues.push({
                 type: "self_redirect",
                 streamName: KeitaroService.STREAM_NAMES.DEFAULT,
+                streamId: defaultFlow.id,
+                field: "action_payload",
+                actual: defaultFlow.action_payload,
                 message:
                     "Default flow налаштований на self-redirect (перенаправляє на саму кампанію). Має перенаправляти на ORG кампанію.",
             });
@@ -2381,6 +2384,10 @@ export class KeitaroService {
                 issues.push({
                     type: "incorrect_config",
                     streamName: filterFlow.name,
+                    streamId: filterFlow.id,
+                    field: "filters",
+                    expected: "at least one filter",
+                    actual: "no filters",
                     message: "Filter потік має містити фільтри",
                 });
             }
@@ -2391,6 +2398,10 @@ export class KeitaroService {
                 issues.push({
                     type: "incorrect_config",
                     streamName: filterFlow.name,
+                    streamId: filterFlow.id,
+                    field: "action_type",
+                    expected: "do_nothing",
+                    actual: filterFlow.action_type || "undefined",
                     message:
                         "Filter потік має містити action_type 'do_nothing'",
                 });
@@ -2568,259 +2579,8 @@ export class KeitaroService {
         );
     }
 
-    /**
-     * Перевіряє naming flows на видалення, зміни та інші проблеми з точки зору бізнес-логіки
-     * - Видалені naming flows (є в системі, але відсутні в Keitaro)
-     * - Змінені naming flows (action_payload, state, filters, тощо)
-     * - Зайві naming flows (є в Keitaro, але не очікуються)
-     */
-    private async checkDeletedNamingFlows(
-        namingFlows: any[],
-        appId: string,
-        warnings: string[],
-        issues: any[],
-    ): Promise<void> {
-        try {
-            // Отримуємо namings з CRM API
-            const crmApiUrl =
-                this.configService.get<string>("crmApiUrl") ||
-                "http://localhost:5000";
-            const namingsUrl = `${crmApiUrl}/api/keitaro/namings-for-app/${appId}`;
-
-            Logger.debug(
-                `Fetching expected namings for app ${appId} from CRM API`,
-                { appId, namingsUrl },
-                "KeitaroService.checkDeletedNamingFlows",
-            );
-
-            let expectedNamings: Array<{
-                namingKey: string;
-                targetCampaignId: number;
-                keitaroCampaign: number | null;
-            }> = [];
-
-            try {
-                const response = await axios.get(namingsUrl, {
-                    timeout: 10000,
-                });
-                if (response.data && Array.isArray(response.data)) {
-                    expectedNamings = response.data.map((n: any) => ({
-                        namingKey: n.namingKey || n.naming || n,
-                        targetCampaignId: n.targetCampaignId,
-                        keitaroCampaign: n.keitaroCampaign || null,
-                    }));
-                }
-            } catch (error: any) {
-                // Якщо не вдалося отримати namings - просто логуємо і продовжуємо
-                Logger.warn(
-                    `Failed to fetch expected namings for app ${appId}: ${error?.message || "Unknown error"}`,
-                    { appId, error: error?.message },
-                    "KeitaroService.checkDeletedNamingFlows",
-                );
-                return; // Не додаємо warnings, якщо не вдалося отримати дані
-            }
-
-            if (expectedNamings.length === 0) {
-                Logger.debug(
-                    `No expected namings found for app ${appId}`,
-                    { appId },
-                    "KeitaroService.checkDeletedNamingFlows",
-                );
-                // Перевіряємо зайві naming flows (які є в Keitaro, але не очікуються)
-                this.checkExtraNamingFlows(
-                    namingFlows,
-                    new Set<string>(),
-                    warnings,
-                );
-                return;
-            }
-
-            // Створюємо Map для швидкого пошуку naming flows в Keitaro
-            const keitaroNamingMap = new Map<string, any>();
-            namingFlows.forEach((flow) => {
-                const namingName = flow.name
-                    ?.replace("Naming Share: ", "")
-                    .trim();
-                if (namingName) {
-                    keitaroNamingMap.set(namingName, flow);
-                }
-            });
-
-            // Створюємо Set з очікуваних naming names
-            const expectedNamingNames = new Set(
-                expectedNamings.map((n) => n.namingKey),
-            );
-
-            // 1. Перевірка на видалені naming flows
-            const deletedNamings = expectedNamings.filter(
-                (naming) => !keitaroNamingMap.has(naming.namingKey),
-            );
-
-            if (deletedNamings.length > 0) {
-                Logger.warn(
-                    `Found ${deletedNamings.length} naming(s) that exist in our system but are deleted in Keitaro`,
-                    {
-                        appId,
-                        deletedNamings: deletedNamings.map((n) => n.namingKey),
-                        totalExpected: expectedNamings.length,
-                        totalInKeitaro: namingFlows.length,
-                    },
-                    "KeitaroService.checkDeletedNamingFlows",
-                );
-
-                issues.push({
-                    type: "deleted_naming_flow",
-                    streamName: null,
-                    message: `Знайдено ${deletedNamings.length} naming(s), які є в нашій системі, але видалені в Keitaro: ${deletedNamings.map((n) => n.namingKey).join(", ")}. Потрібно повторно поділитися naming через "Поширити неймінги в Keitaro".`,
-                    deletedNamings: deletedNamings.map((n) => n.namingKey),
-                });
-            }
-
-            // 2. Перевірка на змінені naming flows
-            for (const expectedNaming of expectedNamings) {
-                const keitaroFlow = keitaroNamingMap.get(
-                    expectedNaming.namingKey,
-                );
-                if (!keitaroFlow) {
-                    continue; // Вже оброблено як видалений
-                }
-
-                const changes: string[] = [];
-
-                // Перевірка action_payload (target campaign ID)
-                const expectedTargetCampaignId = String(
-                    expectedNaming.targetCampaignId,
-                );
-                const actualTargetCampaignId = String(
-                    keitaroFlow.action_payload || "",
-                );
-                if (expectedTargetCampaignId !== actualTargetCampaignId) {
-                    changes.push(
-                        `action_payload змінено: очікується ${expectedTargetCampaignId}, фактично ${actualTargetCampaignId}`,
-                    );
-                }
-
-                // Перевірка state (має бути active)
-                if (keitaroFlow.state !== "active") {
-                    changes.push(
-                        `state змінено: очікується "active", фактично "${keitaroFlow.state}"`,
-                    );
-                }
-
-                // Перевірка наявності фільтра sub_id_17
-                const hasSubId17Filter = keitaroFlow.filters?.some(
-                    (f: any) => f.name === "sub_id_17",
-                );
-                if (!hasSubId17Filter) {
-                    changes.push(`фільтр sub_id_17 видалено`);
-                }
-
-                // Перевірка action_type
-                if (keitaroFlow.action_type !== "campaign") {
-                    changes.push(
-                        `action_type змінено: очікується "campaign", фактично "${keitaroFlow.action_type}"`,
-                    );
-                }
-
-                // Перевірка type
-                if (keitaroFlow.type !== "regular") {
-                    changes.push(
-                        `type змінено: очікується "regular", фактично "${keitaroFlow.type}"`,
-                    );
-                }
-
-                if (changes.length > 0) {
-                    Logger.warn(
-                        `Found changes in naming flow "${expectedNaming.namingKey}"`,
-                        {
-                            appId,
-                            namingKey: expectedNaming.namingKey,
-                            streamId: keitaroFlow.id,
-                            changes,
-                        },
-                        "KeitaroService.checkDeletedNamingFlows",
-                    );
-
-                    issues.push({
-                        type: "modified_naming_flow",
-                        streamName: keitaroFlow.name,
-                        streamId: keitaroFlow.id,
-                        message: `Naming flow "${expectedNaming.namingKey}" було змінено в Keitaro: ${changes.join("; ")}. Потрібно повторно поділитися naming через "Поширити неймінги в Keitaro".`,
-                        changes,
-                        expectedTargetCampaignId,
-                        actualTargetCampaignId,
-                    });
-                }
-            }
-
-            // 3. Перевірка на зайві naming flows (є в Keitaro, але не очікуються)
-            if (expectedNamingNames) {
-                this.checkExtraNamingFlows(
-                    namingFlows,
-                    expectedNamingNames,
-                    warnings,
-                );
-            }
-
-            Logger.info(
-                `Naming flows validation completed: ${expectedNamings.length} expected, ${namingFlows.length} in Keitaro, ${deletedNamings.length} deleted, ${issues.filter((i) => i.type === "modified_naming_flow").length} modified`,
-                {
-                    appId,
-                    totalExpected: expectedNamings.length,
-                    totalInKeitaro: namingFlows.length,
-                    deletedCount: deletedNamings.length,
-                    modifiedCount: issues.filter(
-                        (i) => i.type === "modified_naming_flow",
-                    ).length,
-                },
-                "KeitaroService.checkDeletedNamingFlows",
-            );
-        } catch (error) {
-            Logger.error(
-                `Error checking naming flows for app ${appId}`,
-                error instanceof Error ? error.stack : undefined,
-                "KeitaroService.checkDeletedNamingFlows",
-            );
-            // Не кидаємо помилку - просто логуємо
-        }
-    }
-
-    /**
-     * Перевіряє на зайві naming flows (є в Keitaro, але не очікуються в нашій системі)
-     */
-    private checkExtraNamingFlows(
-        namingFlows: any[],
-        expectedNamingNames?: Set<string>,
-        warnings?: string[],
-    ): void {
-        if (!expectedNamingNames || !warnings) {
-            return;
-        }
-
-        const extraNamingFlows = namingFlows.filter((flow) => {
-            const namingName = flow.name?.replace("Naming Share: ", "").trim();
-            return namingName && !expectedNamingNames.has(namingName);
-        });
-
-        if (extraNamingFlows.length > 0) {
-            const extraNames = extraNamingFlows.map((flow) =>
-                flow.name?.replace("Naming Share: ", "").trim(),
-            );
-            Logger.warn(
-                `Found ${extraNamingFlows.length} extra naming flow(s) in Keitaro that are not expected in our system`,
-                {
-                    extraNames,
-                    totalInKeitaro: namingFlows.length,
-                    totalExpected: expectedNamingNames.size,
-                },
-                "KeitaroService.checkExtraNamingFlows",
-            );
-
-            warnings.push(
-                `Знайдено ${extraNamingFlows.length} naming flow(s) в Keitaro, які не очікуються в нашій системі: ${extraNames.join(", ")}. Можливо, вони були створені вручну або належать іншій апці.`,
-            );
-        }
-    }
+    // Логіка перевірки naming flows перенесена в tbapptech-crm-api
+    // для уникнення HTTP запитів між сервісами та використання прямого доступу до БД
 
     private checkExtraStreams(streams: any[], warnings: string[]): void {
         const allowedNames = [

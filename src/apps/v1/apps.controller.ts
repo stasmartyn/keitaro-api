@@ -20,6 +20,7 @@ import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
+import { ConfigureDefaultFlowDto } from "../dto/configure-default-flow.dto";
 
 @VersionController("v1", "apps")
 export class AppsController {
@@ -147,5 +148,10 @@ export class AppsController {
     @Post("toggle-deny-org-traffic")
     async toggleDenyOrgTraffic(@Body() body: ToggleDenyOrgTrafficDto) {
         return this.appsService.toggleDenyOrgTraffic(body);
+    }
+
+    @Post("configure-default-flow")
+    async configureDefaultFlow(@Body() body: ConfigureDefaultFlowDto) {
+        return this.appsService.configureDefaultFlow(body);
     }
 }

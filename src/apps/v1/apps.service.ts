@@ -29,6 +29,7 @@ import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { ConfigureDefaultFlowDto } from "../dto/configure-default-flow.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
 import { QueueService } from "../../queue/queue.service";
 import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
@@ -1195,10 +1196,8 @@ export class AppsService {
             throw new BadRequestException("Missing required field: campaignId");
         }
 
-        return await this.keitaroClient.validateIntegration(
-            campaignId,
-            body.appId,
-        );
+        // appId не використовується - перевірка naming flows перенесена в tbapptech-crm-api
+        return await this.keitaroClient.validateIntegration(campaignId);
     }
 
     private async toggleDenyOrgTrafficInternal(body: ToggleDenyOrgTrafficDto) {
@@ -1214,6 +1213,28 @@ export class AppsService {
         return await this.keitaroClient.toggleDenyOrgTraffic(
             campaignId,
             enable,
+        );
+    }
+
+    async configureDefaultFlow(body: ConfigureDefaultFlowDto) {
+        const { appCampaignId, orgCampaignId, redirectToOrg } = body;
+
+        if (!appCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: appCampaignId",
+            );
+        }
+
+        if (redirectToOrg && !orgCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: orgCampaignId (required when redirectToOrg is true)",
+            );
+        }
+
+        return await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+            appCampaignId,
+            orgCampaignId || 0,
+            redirectToOrg !== undefined ? redirectToOrg : true,
         );
     }
 
