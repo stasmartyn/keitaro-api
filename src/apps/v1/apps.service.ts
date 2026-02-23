@@ -29,6 +29,7 @@ import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { ConfigureDefaultFlowDto } from "../dto/configure-default-flow.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
 import { QueueService } from "../../queue/queue.service";
 import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
@@ -1039,6 +1040,27 @@ export class AppsService {
                     },
                     path: "admin_api/v1/streams",
                 },
+                {
+                    key: "appDefaultFlow",
+                    fn: async () => {
+                        // Створюємо/оновлюємо default flow в APP campaign з редиректом на ORG campaign
+                        const res =
+                            await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+                                result.cloCampaign.campaignId,
+                                result.orgCampaign.campaignId,
+                            );
+                        Logger.info(
+                            `Default flow configured for APP campaign ${result.cloCampaign.campaignId} to redirect to ORG campaign ${result.orgCampaign.campaignId}`,
+                            {
+                                appCampaignId: result.cloCampaign.campaignId,
+                                orgCampaignId: result.orgCampaign.campaignId,
+                            },
+                            "AppsService.createAppInternal",
+                        );
+                        return res;
+                    },
+                    path: "admin_api/v1/streams",
+                },
             ];
 
             for (const step of steps) {
@@ -1174,6 +1196,7 @@ export class AppsService {
             throw new BadRequestException("Missing required field: campaignId");
         }
 
+        // appId не використовується - перевірка naming flows перенесена в tbapptech-crm-api
         return await this.keitaroClient.validateIntegration(campaignId);
     }
 
@@ -1190,6 +1213,28 @@ export class AppsService {
         return await this.keitaroClient.toggleDenyOrgTraffic(
             campaignId,
             enable,
+        );
+    }
+
+    async configureDefaultFlow(body: ConfigureDefaultFlowDto) {
+        const { appCampaignId, orgCampaignId, redirectToOrg } = body;
+
+        if (!appCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: appCampaignId",
+            );
+        }
+
+        if (redirectToOrg && !orgCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: orgCampaignId (required when redirectToOrg is true)",
+            );
+        }
+
+        return await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+            appCampaignId,
+            orgCampaignId || 0,
+            redirectToOrg !== undefined ? redirectToOrg : true,
         );
     }
 
