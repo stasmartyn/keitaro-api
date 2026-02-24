@@ -479,6 +479,11 @@ export class KeitaroService {
             const url = this.buildUrl(
                 `admin_api/v1/campaigns/${templateId}/clone`,
             );
+            Logger.info(
+                `[copyCampaign] Cloning template`,
+                { templateId, url },
+                "KeitaroService.copyCampaign",
+            );
             const response = await axios.post(
                 url,
                 {},
@@ -486,8 +491,22 @@ export class KeitaroService {
                     headers: this.generateHeaders(),
                 },
             );
+            const responseData = response.data;
+            Logger.info(
+                `[copyCampaign] Clone response received`,
+                {
+                    templateId,
+                    responseType: Array.isArray(responseData)
+                        ? "array"
+                        : typeof responseData,
+                    responseLength: Array.isArray(responseData)
+                        ? responseData.length
+                        : undefined,
+                },
+                "KeitaroService.copyCampaign",
+            );
 
-            return response.data;
+            return responseData;
         } catch (error) {
             this.handleKeitaroError(this.copyCampaign.name, error);
         }

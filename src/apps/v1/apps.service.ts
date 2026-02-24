@@ -868,6 +868,17 @@ export class AppsService {
 
     private async copyCampaignInternal(body: CopyCampaignDto) {
         const { id, group_id, name, sub_id, change_parameters } = body;
+        Logger.info(
+            "[copyCampaignInternal] Incoming request payload",
+            {
+                id,
+                group_id,
+                name,
+                hasSubId: !!sub_id,
+                change_parameters: !!change_parameters,
+            },
+            "AppsService.copyCampaignInternal",
+        );
 
         if (!id || !group_id || !name) {
             throw new BadRequestException("Missing required fields.");
@@ -882,6 +893,27 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+        Logger.info(
+            "[copyCampaignInternal] Raw clone result shape",
+            {
+                templateId: id,
+                responseType: Array.isArray(copyResult)
+                    ? "array"
+                    : typeof copyResult,
+                responseLength: Array.isArray(copyResult)
+                    ? copyResult.length
+                    : undefined,
+                responseKeys:
+                    copyResult && typeof copyResult === "object"
+                        ? Object.keys(copyResult as Record<string, unknown>)
+                        : [],
+                firstArrayItem:
+                    Array.isArray(copyResult) && copyResult.length > 0
+                        ? copyResult[0]
+                        : null,
+            },
+            "AppsService.copyCampaignInternal",
+        );
         const copiedCampaign =
             this.extractCopiedCampaignFromCloneResponse(copyResult);
 
@@ -926,6 +958,16 @@ export class AppsService {
             };
         }
 
+        Logger.info(
+            "[copyCampaignInternal] Updating cloned campaign",
+            {
+                copiedCampaignId,
+                alias,
+                group_id: +group_id,
+                change_parameters: !!change_parameters,
+            },
+            "AppsService.copyCampaignInternal",
+        );
         return await this.keitaroClient.updateCampaign(copiedCampaignId, data);
     }
 
