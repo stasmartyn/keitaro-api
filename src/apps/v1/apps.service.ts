@@ -49,6 +49,46 @@ export class AppsService {
         private readonly androidAppModel: Model<AndroidAppDocument>,
     ) {}
 
+    private extractCopiedCampaignFromCloneResponse(
+        copyResult: unknown,
+    ): ICampaign | null {
+        const resultObj = (copyResult || {}) as Record<string, any>;
+        const dataValue = resultObj?.data;
+        const resultValue = resultObj?.result;
+        const responseValue = resultObj?.response;
+
+        const candidates: any[] = [];
+        if (Array.isArray(copyResult)) {
+            candidates.push(copyResult[0]);
+        } else {
+            candidates.push(
+                resultObj,
+                resultObj.campaign,
+                dataValue,
+                Array.isArray(dataValue) ? dataValue[0] : undefined,
+                dataValue?.campaign,
+                resultValue,
+                Array.isArray(resultValue) ? resultValue[0] : undefined,
+                resultValue?.campaign,
+                responseValue,
+                Array.isArray(responseValue) ? responseValue[0] : undefined,
+                responseValue?.campaign,
+                resultObj.payload,
+            );
+        }
+
+        const copiedCampaign = candidates.find((item) => {
+            if (!item || typeof item !== "object") return false;
+            const value = (item as Record<string, any>).id;
+            return (
+                typeof value === "number" ||
+                (typeof value === "string" && value.trim().length > 0)
+            );
+        });
+
+        return (copiedCampaign as ICampaign) || null;
+    }
+
     async getAllCampaigns() {
         const getAllCampaignsWithErrorHandler = wrapWithErrorHandler(
             this.getAllCampaignsInternal.bind(this),
@@ -792,19 +832,11 @@ export class AppsService {
             try {
                 const copyResult =
                     await this.keitaroClient.copyCampaign(templateId);
-                if (
-                    !copyResult ||
-                    !Array.isArray(copyResult) ||
-                    copyResult.length === 0
-                ) {
-                    throw new BadRequestException(
-                        "Failed to copy campaign. Invalid response from Keitaro API.",
-                    );
-                }
-                copiedCampaign = copyResult[0];
+                copiedCampaign =
+                    this.extractCopiedCampaignFromCloneResponse(copyResult);
                 if (!copiedCampaign?.id) {
                     throw new BadRequestException(
-                        "Failed to copy campaign. Copied campaign data is invalid.",
+                        "Failed to copy campaign. Invalid response from Keitaro API.",
                     );
                 }
 
@@ -850,21 +882,31 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+        const copiedCampaign =
+            this.extractCopiedCampaignFromCloneResponse(copyResult);
 
-        if (
-            !copyResult ||
-            !Array.isArray(copyResult) ||
-            copyResult.length === 0
-        ) {
+        if (!copiedCampaign) {
+            Logger.warn(
+                "[copyCampaignInternal] Unexpected copy campaign response",
+                {
+                    responseType: Array.isArray(copyResult)
+                        ? "array"
+                        : typeof copyResult,
+                    responseKeys:
+                        copyResult && typeof copyResult === "object"
+                            ? Object.keys(copyResult as Record<string, unknown>)
+                            : [],
+                },
+            );
             throw new BadRequestException(
-                `Failed to copy campaign. Invalid response from Keitaro API.`,
+                "Failed to copy campaign. Keitaro clone response has no campaign id.",
             );
         }
 
-        const copiedCampaign = copyResult[0];
-        if (!copiedCampaign || !copiedCampaign.id) {
+        const copiedCampaignId = Number(copiedCampaign.id);
+        if (!Number.isFinite(copiedCampaignId) || copiedCampaignId <= 0) {
             throw new BadRequestException(
-                `Failed to copy campaign. Copied campaign data is invalid.`,
+                "Failed to copy campaign. Keitaro clone returned invalid campaign id.",
             );
         }
 
@@ -884,7 +926,7 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(copiedCampaign.id, data);
+        return await this.keitaroClient.updateCampaign(copiedCampaignId, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {
