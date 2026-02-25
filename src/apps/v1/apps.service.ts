@@ -29,6 +29,7 @@ import { AllowTrafficDto } from "../dto/allow-traffic.dto";
 import { ToggleTestFlowDto } from "../dto/toggle-test-flow.dto";
 import { ValidateIntegrationDto } from "../dto/validate-integration.dto";
 import { ToggleDenyOrgTrafficDto } from "../dto/toggle-deny-org-traffic.dto";
+import { ConfigureDefaultFlowDto } from "../dto/configure-default-flow.dto";
 import { UpdateStreamDto } from "../dto/update-stream.dto";
 import { QueueService } from "../../queue/queue.service";
 import { NamingSharingJobData } from "../../queue/queues/naming-sharing.types";
@@ -47,6 +48,46 @@ export class AppsService {
         @Inject(ProvidersDB.ANDROID_APP)
         private readonly androidAppModel: Model<AndroidAppDocument>,
     ) {}
+
+    private extractCopiedCampaignFromCloneResponse(
+        copyResult: unknown,
+    ): ICampaign | null {
+        const resultObj = (copyResult || {}) as Record<string, any>;
+        const dataValue = resultObj?.data;
+        const resultValue = resultObj?.result;
+        const responseValue = resultObj?.response;
+
+        const candidates: any[] = [];
+        if (Array.isArray(copyResult)) {
+            candidates.push(copyResult[0]);
+        } else {
+            candidates.push(
+                resultObj,
+                resultObj.campaign,
+                dataValue,
+                Array.isArray(dataValue) ? dataValue[0] : undefined,
+                dataValue?.campaign,
+                resultValue,
+                Array.isArray(resultValue) ? resultValue[0] : undefined,
+                resultValue?.campaign,
+                responseValue,
+                Array.isArray(responseValue) ? responseValue[0] : undefined,
+                responseValue?.campaign,
+                resultObj.payload,
+            );
+        }
+
+        const copiedCampaign = candidates.find((item) => {
+            if (!item || typeof item !== "object") return false;
+            const value = (item as Record<string, any>).id;
+            return (
+                typeof value === "number" ||
+                (typeof value === "string" && value.trim().length > 0)
+            );
+        });
+
+        return (copiedCampaign as ICampaign) || null;
+    }
 
     async getAllCampaigns() {
         const getAllCampaignsWithErrorHandler = wrapWithErrorHandler(
@@ -519,10 +560,19 @@ export class AppsService {
     private async createOnelinkCampaignInternal(
         body: CreateOnelinkCampaignDto,
     ) {
-        const { offer_id, bundle_id, app_name } = body;
+        const {
+            offer_id,
+            bundle_id,
+            app_name,
+            onelink_landing_id,
+            campaign_group_id,
+        } = body;
         if (!offer_id || !bundle_id || !app_name) {
             throw new BadRequestException("Missing required fields.");
         }
+
+        const landingId = onelink_landing_id || 363;
+        const groupId = campaign_group_id || 40;
 
         const alias = this.generateUniqueAlias();
         while (true) {
@@ -530,7 +580,7 @@ export class AppsService {
                 name: `Onelink ${bundle_id} (${app_name})`,
                 alias,
                 traffic_source_id: 0,
-                group_id: 40,
+                group_id: groupId,
             };
 
             const createCampaignResponse: ICampaign =
@@ -555,11 +605,9 @@ export class AppsService {
                 triggers: [],
                 landings: [
                     {
-                        landing_id: 363,
+                        landing_id: landingId,
                         state: "active",
                         share: 100,
-                        created_at: "2025-05-14 15:31:25",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
                 offers: [
@@ -567,8 +615,6 @@ export class AppsService {
                         offer_id: Number(offer_id),
                         state: "active",
                         share: 100,
-                        created_at: "2025-06-12 07:53:37",
-                        updated_at: "2025-06-12 09:04:50",
                     },
                 ],
             };
@@ -786,19 +832,11 @@ export class AppsService {
             try {
                 const copyResult =
                     await this.keitaroClient.copyCampaign(templateId);
-                if (
-                    !copyResult ||
-                    !Array.isArray(copyResult) ||
-                    copyResult.length === 0
-                ) {
-                    throw new BadRequestException(
-                        "Failed to copy campaign. Invalid response from Keitaro API.",
-                    );
-                }
-                copiedCampaign = copyResult[0];
+                copiedCampaign =
+                    this.extractCopiedCampaignFromCloneResponse(copyResult);
                 if (!copiedCampaign?.id) {
                     throw new BadRequestException(
-                        "Failed to copy campaign. Copied campaign data is invalid.",
+                        "Failed to copy campaign. Invalid response from Keitaro API.",
                     );
                 }
 
@@ -841,6 +879,17 @@ export class AppsService {
 
     private async copyCampaignInternal(body: CopyCampaignDto) {
         const { id, group_id, name, sub_id, change_parameters } = body;
+        Logger.info(
+            "[copyCampaignInternal] Incoming request payload",
+            {
+                id,
+                group_id,
+                name,
+                hasSubId: !!sub_id,
+                change_parameters: !!change_parameters,
+            },
+            "AppsService.copyCampaignInternal",
+        );
 
         if (!id || !group_id || !name) {
             throw new BadRequestException("Missing required fields.");
@@ -855,21 +904,52 @@ export class AppsService {
         const alias = this.generateUniqueAlias();
 
         const copyResult = await this.keitaroClient.copyCampaign(id);
+        Logger.info(
+            "[copyCampaignInternal] Raw clone result shape",
+            {
+                templateId: id,
+                responseType: Array.isArray(copyResult)
+                    ? "array"
+                    : typeof copyResult,
+                responseLength: Array.isArray(copyResult)
+                    ? copyResult.length
+                    : undefined,
+                responseKeys:
+                    copyResult && typeof copyResult === "object"
+                        ? Object.keys(copyResult as Record<string, unknown>)
+                        : [],
+                firstArrayItem:
+                    Array.isArray(copyResult) && copyResult.length > 0
+                        ? copyResult[0]
+                        : null,
+            },
+            "AppsService.copyCampaignInternal",
+        );
+        const copiedCampaign =
+            this.extractCopiedCampaignFromCloneResponse(copyResult);
 
-        if (
-            !copyResult ||
-            !Array.isArray(copyResult) ||
-            copyResult.length === 0
-        ) {
+        if (!copiedCampaign) {
+            Logger.warn(
+                "[copyCampaignInternal] Unexpected copy campaign response",
+                {
+                    responseType: Array.isArray(copyResult)
+                        ? "array"
+                        : typeof copyResult,
+                    responseKeys:
+                        copyResult && typeof copyResult === "object"
+                            ? Object.keys(copyResult as Record<string, unknown>)
+                            : [],
+                },
+            );
             throw new BadRequestException(
-                `Failed to copy campaign. Invalid response from Keitaro API.`,
+                "Failed to copy campaign. Keitaro clone response has no campaign id.",
             );
         }
 
-        const copiedCampaign = copyResult[0];
-        if (!copiedCampaign || !copiedCampaign.id) {
+        const copiedCampaignId = Number(copiedCampaign.id);
+        if (!Number.isFinite(copiedCampaignId) || copiedCampaignId <= 0) {
             throw new BadRequestException(
-                `Failed to copy campaign. Copied campaign data is invalid.`,
+                "Failed to copy campaign. Keitaro clone returned invalid campaign id.",
             );
         }
 
@@ -889,7 +969,17 @@ export class AppsService {
             };
         }
 
-        return await this.keitaroClient.updateCampaign(copiedCampaign.id, data);
+        Logger.info(
+            "[copyCampaignInternal] Updating cloned campaign",
+            {
+                copiedCampaignId,
+                alias,
+                group_id: +group_id,
+                change_parameters: !!change_parameters,
+            },
+            "AppsService.copyCampaignInternal",
+        );
+        return await this.keitaroClient.updateCampaign(copiedCampaignId, data);
     }
 
     private async createAppInternal(body: CreateAppDto) {
@@ -1045,6 +1135,27 @@ export class AppsService {
                     },
                     path: "admin_api/v1/streams",
                 },
+                {
+                    key: "appDefaultFlow",
+                    fn: async () => {
+                        // Створюємо/оновлюємо default flow в APP campaign з редиректом на ORG campaign
+                        const res =
+                            await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+                                result.cloCampaign.campaignId,
+                                result.orgCampaign.campaignId,
+                            );
+                        Logger.info(
+                            `Default flow configured for APP campaign ${result.cloCampaign.campaignId} to redirect to ORG campaign ${result.orgCampaign.campaignId}`,
+                            {
+                                appCampaignId: result.cloCampaign.campaignId,
+                                orgCampaignId: result.orgCampaign.campaignId,
+                            },
+                            "AppsService.createAppInternal",
+                        );
+                        return res;
+                    },
+                    path: "admin_api/v1/streams",
+                },
             ];
 
             for (const step of steps) {
@@ -1180,6 +1291,7 @@ export class AppsService {
             throw new BadRequestException("Missing required field: campaignId");
         }
 
+        // appId не використовується - перевірка naming flows перенесена в tbapptech-crm-api
         return await this.keitaroClient.validateIntegration(campaignId);
     }
 
@@ -1196,6 +1308,28 @@ export class AppsService {
         return await this.keitaroClient.toggleDenyOrgTraffic(
             campaignId,
             enable,
+        );
+    }
+
+    async configureDefaultFlow(body: ConfigureDefaultFlowDto) {
+        const { appCampaignId, orgCampaignId, redirectToOrg } = body;
+
+        if (!appCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: appCampaignId",
+            );
+        }
+
+        if (redirectToOrg && !orgCampaignId) {
+            throw new BadRequestException(
+                "Missing required field: orgCampaignId (required when redirectToOrg is true)",
+            );
+        }
+
+        return await this.keitaroClient.updateDefaultFlowWithOrgCampaign(
+            appCampaignId,
+            orgCampaignId || 0,
+            redirectToOrg !== undefined ? redirectToOrg : true,
         );
     }
 

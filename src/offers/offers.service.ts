@@ -266,15 +266,24 @@ export class OffersService {
     }
 
     private async createSingleOfferInternal(body: CreateSingleOfferDto) {
-        const { app_name, bundle_id, attribution_type, attribution_link } =
-            body;
+        const {
+            app_name,
+            bundle_id,
+            attribution_type,
+            attribution_link,
+            offer_group_id,
+            affiliate_network_id,
+        } = body;
 
         const offerName = `${attribution_type} ${bundle_id} (${app_name})`;
+        const defaultAffiliateNetworkId =
+            attribution_type === "affise" ? 596 : 443;
         const offerParams = this.buildOfferParams({
             name: offerName,
             action_payload: attribution_link,
-            affiliate_network_id: attribution_type === "affise" ? 596 : 443,
-            group_id: 10,
+            affiliate_network_id:
+                affiliate_network_id || defaultAffiliateNetworkId,
+            group_id: offer_group_id || 10,
         });
 
         return await this.keitaroService.createOffer(offerParams);
