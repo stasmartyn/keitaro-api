@@ -959,11 +959,27 @@ export class AppsService {
             group_id: +group_id,
         };
         if (change_parameters) {
+            // Если sub_id передан и не пустой - используем его, иначе используем динамический placeholder {user_id}
+            const user_id_placeholder =
+                sub_id && typeof sub_id === "string" && sub_id.trim() !== ""
+                    ? sub_id
+                    : "{user_id}";
+
+            Logger.info(
+                "[copyCampaignInternal] Setting sub_id_15 parameter",
+                {
+                    sub_id,
+                    user_id_placeholder,
+                    hasSubId: !!sub_id,
+                },
+                "AppsService.copyCampaignInternal",
+            );
+
             data.parameters = {
-                ...copiedCampaign.parameters,
+                ...(copiedCampaign.parameters || {}),
                 sub_id_15: {
                     name: "user_id",
-                    placeholder: sub_id,
+                    placeholder: user_id_placeholder,
                     alias: "",
                 },
             };
