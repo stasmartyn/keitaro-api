@@ -1551,21 +1551,15 @@ export class KeitaroService {
     async toggleTestFlow(campaignId: number, enable: boolean): Promise<any> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const testFlow = streams.find(
-                (stream: any) =>
-                    stream.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.TEST_FLOW,
+            const testFlow = streams.find((stream: any) =>
+                stream.name
+                    ?.toLowerCase()
+                    .includes(KeitaroService.STREAM_NAMES.TEST_FLOW),
             );
 
-            const isConfiguredCorrectly =
-                testFlow &&
-                testFlow.type === "forced" &&
-                Array.isArray(testFlow.offers) &&
-                testFlow.offers.length > 0;
-
-            if (!isConfiguredCorrectly) {
+            if (!testFlow) {
                 throw new BadRequestException(
-                    "Test flow stream does not exist or is incorrectly configured",
+                    "Test flow stream not found in campaign",
                 );
             }
 
@@ -1905,10 +1899,10 @@ export class KeitaroService {
     ): Promise<any> {
         try {
             const streams = await this.getCampaignStreams(campaignId);
-            const denyOrgStream = streams.find(
-                (stream: any) =>
-                    stream.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            const denyOrgStream = streams.find((stream: any) =>
+                stream.name
+                    ?.toLowerCase()
+                    .includes(KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC),
             );
 
             if (!denyOrgStream) {
@@ -1938,20 +1932,20 @@ export class KeitaroService {
             const streams = await this.getCampaignStreams(campaignId);
             const createdStreams: any[] = [];
 
-            const testFlow = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.TEST_FLOW,
+            const testFlow = streams.find((s) =>
+                s.name
+                    ?.toLowerCase()
+                    .includes(KeitaroService.STREAM_NAMES.TEST_FLOW),
             );
-            const denyAllTraffic = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
+            const denyAllTraffic = streams.find((s) =>
+                s.name
+                    ?.toLowerCase()
+                    .includes(KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC),
             );
-            const denyOrgTraffic = streams.find(
-                (s) =>
-                    s.name?.toLowerCase() ===
-                    KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
+            const denyOrgTraffic = streams.find((s) =>
+                s.name
+                    ?.toLowerCase()
+                    .includes(KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC),
             );
 
             const getNextPosition = () => {
@@ -2602,7 +2596,7 @@ export class KeitaroService {
     // для уникнення HTTP запитів між сервісами та використання прямого доступу до БД
 
     private checkExtraStreams(streams: any[], warnings: string[]): void {
-        const allowedNames = [
+        const allowedNameSubstrings = [
             KeitaroService.STREAM_NAMES.TEST_FLOW,
             KeitaroService.STREAM_NAMES.DENY_ALL_TRAFFIC,
             KeitaroService.STREAM_NAMES.DENY_ORG_TRAFFIC,
@@ -2612,7 +2606,9 @@ export class KeitaroService {
             (s) =>
                 !s.name?.startsWith("Naming Share:") &&
                 !s.name?.toLowerCase().startsWith("filter") &&
-                !allowedNames.includes(s.name?.toLowerCase()) &&
+                !allowedNameSubstrings.some((sub) =>
+                    s.name?.toLowerCase().includes(sub),
+                ) &&
                 s.type !== "default",
         );
         if (extraStreams.length > 0) {
