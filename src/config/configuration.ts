@@ -37,14 +37,6 @@ export default () => ({
             process.env.KEITARO_TEST_FLOW_OFFER_ID || "3412",
             10,
         ),
-        emptyCampaignTemplateIdDev: parseInt(
-            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_DEV,
-            10,
-        ),
-        emptyCampaignTemplateIdProd: parseInt(
-            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_PROD,
-            10,
-        ),
     },
     failover: {
         // Campaign Groups

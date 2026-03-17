@@ -9,7 +9,6 @@ import { CreateAppDto } from "../dto/create-app.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
-import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { ICampaign, ICampaignCreate } from "../interfaces/campaign.interface";
 import { IStreamCreate } from "../interfaces/stream.interface";
@@ -136,19 +135,6 @@ export class AppsService {
         );
 
         return createByOfferWithErrorHandler(body);
-    }
-
-    async createEmptyCampaign(body: CreateEmptyCampaignDto) {
-        const createEmptyCampaignWithErrorHandler = wrapWithErrorHandler(
-            this.createEmptyCampaignInternal.bind(this),
-            {
-                functionName: "AppsService.createEmptyCampaign",
-                additionalData: {
-                    endpoint: "POST /v1/apps/create-empty-campaign",
-                },
-            },
-        );
-        return createEmptyCampaignWithErrorHandler(body);
     }
 
     async createOnelinkCampaign(body: CreateOnelinkCampaignDto) {
@@ -669,79 +655,6 @@ export class AppsService {
                 }
             }
         }
-    }
-
-    private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {
-        const { buyer, sub, group_id } = body;
-        if (!buyer || !sub) {
-            throw new BadRequestException("Missing required fields.");
-        }
-
-        const nodeEnv = this.configService.get<string>("NODE_ENV");
-        const templateId =
-            nodeEnv === "production"
-                ? this.configService.get<number>(
-                      "keitaro.emptyCampaignTemplateIdProd",
-                  )
-                : this.configService.get<number>(
-                      "keitaro.emptyCampaignTemplateIdDev",
-                  );
-        if (!templateId) {
-            throw new BadRequestException(
-                `Empty campaign template not configured for NODE_ENV=${nodeEnv}. Set EMPTY_CAMPAIGN_TEMPLATE_ID_DEV and EMPTY_CAMPAIGN_TEMPLATE_ID_PROD.`,
-            );
-        }
-
-        let alias = this.generateUniqueAlias();
-        let copiedCampaign: ICampaign;
-
-        while (true) {
-            try {
-                const copyResult =
-                    await this.keitaroClient.copyCampaign(templateId);
-                copiedCampaign =
-                    this.extractCopiedCampaignFromCloneResponse(copyResult);
-                if (!copiedCampaign?.id) {
-                    throw new BadRequestException(
-                        "Failed to copy campaign. Invalid response from Keitaro API.",
-                    );
-                }
-
-                const updatedParams = {
-                    ...copiedCampaign.parameters,
-                    sub_id_15: {
-                        name: "user_id",
-                        placeholder: sub,
-                        alias: "",
-                    },
-                };
-
-                await this.keitaroClient.updateCampaign(copiedCampaign.id, {
-                    name: `${alias} ${buyer} (${sub}) SION Apps`,
-                    alias,
-                    group_id: Number(group_id),
-                    parameters: updatedParams,
-                });
-                break;
-            } catch (error) {
-                if (error?.response?.data?.alias?.length) {
-                    alias = this.generateUniqueAlias();
-                } else {
-                    throw error;
-                }
-            }
-        }
-
-        const campaignId = copiedCampaign.id;
-        const campaignName = `${alias} ${buyer} (${sub}) SION Apps`;
-        const campaignAlias = alias;
-
-        return {
-            name: campaignName,
-            alias: campaignAlias,
-            id: campaignId,
-            token: copiedCampaign.token,
-        };
     }
 
     private async copyCampaignInternal(body: CopyCampaignDto) {
