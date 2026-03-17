@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { KeitaroService } from "../../keitaro/keitaro.service";
@@ -8,12 +8,6 @@ import { Logger } from "../../utils/logger";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
-import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
-import { CampaignUserDocument } from "../../database/schemas/campaign-user.model";
-import { ProvidersDB } from "../../common/enums/db-enums";
-import { Model } from "mongoose";
-import { IosAppDocument } from "../../database/schemas/ios-app.model";
-import { AndroidAppDocument } from "../../database/schemas/android-app.model";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
@@ -41,12 +35,6 @@ export class AppsService {
         private readonly campaignDataService: CampaignDataService,
         private readonly configService: ConfigService,
         private readonly queueService: QueueService,
-        @Inject(ProvidersDB.CAMPAIGN_USER)
-        private readonly campaignUserModel: Model<CampaignUserDocument>,
-        @Inject(ProvidersDB.IOS_APP)
-        private readonly iosAppModel: Model<IosAppDocument>,
-        @Inject(ProvidersDB.ANDROID_APP)
-        private readonly androidAppModel: Model<AndroidAppDocument>,
     ) {}
 
     private extractCopiedCampaignFromCloneResponse(
@@ -136,20 +124,6 @@ export class AppsService {
         );
 
         return copyCampaignWithErrorHandler(body);
-    }
-
-    async createNoOrgCampaign(body: CreateNoOrgCampaignDto) {
-        const createNoOrgCampaignWithErrorHandler = wrapWithErrorHandler(
-            this.createNoOrgCampaignInternal.bind(this),
-            {
-                functionName: "AppsService.createNoOrgCampaign",
-                additionalData: {
-                    endpoint: "POST /v1/apps/create-no-org-campaign",
-                },
-            },
-        );
-
-        return createNoOrgCampaignWithErrorHandler(body);
     }
 
     async createByOffer(body: CreateByOfferDto) {
@@ -695,113 +669,6 @@ export class AppsService {
                 }
             }
         }
-    }
-
-    private async createNoOrgCampaignInternal(body: CreateNoOrgCampaignDto) {
-        const { name, bundle, buyerId } = body;
-        let isIos = false;
-        if (!name || !bundle || !buyerId) {
-            throw new BadRequestException("Missing required fields.");
-        }
-
-        let trafficSourceId;
-        let appResult;
-        const buyer = await this.campaignUserModel.findOne({ sub: buyerId });
-
-        if (!buyer) {
-            throw new BadRequestException("Buyer not found.");
-        }
-
-        appResult = await this.iosAppModel.findOne({ appID: bundle });
-
-        if (appResult) {
-            trafficSourceId = appResult.keitaroID;
-            isIos = true;
-        } else {
-            appResult = await this.androidAppModel.findOne({
-                bundleID: bundle,
-            });
-        }
-
-        if (!appResult) {
-            throw new BadRequestException("App not found.");
-        }
-
-        trafficSourceId = appResult.keitaroID;
-
-        const result = {
-            trafficSourceId,
-            noOrgCampaign: {
-                campaignId: null,
-                campaignToken: null,
-                campaignAlias: null,
-            },
-            name: "",
-        };
-
-        const createNoOrgCampaign = async () => {
-            let alias = this.generateUniqueAlias();
-            while (true) {
-                try {
-                    const campaignData: ICampaignCreate = {
-                        name: `${buyer.nickName} (${buyer.sub}) (${appResult.name})`,
-                        alias,
-                        traffic_source_id: result.trafficSourceId,
-                        group_id: Number(buyer.group_id),
-                        sub_id: buyer.sub,
-                    };
-                    const noOrgCampaignResponse =
-                        await this.keitaroClient.createCampaign(campaignData);
-
-                    result.noOrgCampaign.campaignId = `${noOrgCampaignResponse.id}`;
-                    result.noOrgCampaign.campaignToken = `${noOrgCampaignResponse.token}`;
-                    result.noOrgCampaign.campaignAlias = `${noOrgCampaignResponse.alias}`;
-                    result.name = `${noOrgCampaignResponse.name}`;
-                    return { alias, result: noOrgCampaignResponse };
-                } catch (error) {
-                    if (error?.response?.data?.alias?.length) {
-                        alias = this.generateUniqueAlias();
-                    } else {
-                        throw error;
-                    }
-                }
-            }
-        };
-
-        const { alias, result: noOrgCampaignResponse } =
-            await createNoOrgCampaign();
-
-        const updatePostBackData = {
-            postbacks: [
-                {
-                    campaign_id: noOrgCampaignResponse.id,
-                    method: "GET",
-                    url: "https://europe-west3-my-wallet-333322.cloudfunctions.net/handleTGmessage?status=dep&offer={offer_name}&user_id={user_id}&subid={subid}&country={country}&campaign={campaign_name}&revenue={conversion_revenue}&conversion={_conversion_time:Y-m-d%20H:i:s,Europe/Kyiv}&sub1={sub_id_1}&sub2={sub_id_2}&sub3={sub_id_3}&sub4={sub_id_4}&sub5={sub_id_5}&sub6={sub_id_6}&naming={sub_id_17}&os={os}&click_time={_date:Y-m-d%20H:i:s,Europe/Kyiv}",
-                    statuses: ["sale"],
-                },
-            ],
-        };
-
-        if (isIos) {
-            updatePostBackData.postbacks.push({
-                campaign_id: noOrgCampaignResponse.id,
-                method: "GET",
-                url: "https://stage.linkfactory.site/w2a-events?subid={sub_id_18}&event={status}&payout={revenue}&tr=new",
-                statuses: ["sale", "lead"],
-            });
-        }
-
-        await this.keitaroClient.updateNoOrgCampaignPostback(
-            updatePostBackData,
-            noOrgCampaignResponse.id,
-        );
-
-        await this.keitaroClient.createNoORGCampaignStreams(
-            result.noOrgCampaign.campaignId,
-            isIos,
-        );
-
-        return { ...result, alias };
     }
 
     private async createEmptyCampaignInternal(body: CreateEmptyCampaignDto) {

@@ -6,10 +6,8 @@ import { AppsV2Service } from "./v2/apps.service";
 import { AppsV2Controller } from "./v2/apps.controller";
 import { CampaignDataService } from "./campaign-data.service";
 import { KeitaroService } from "../keitaro/keitaro.service";
-import { DatabaseModule } from "../database/database.module";
 
 @Module({
-    imports: [DatabaseModule],
     providers: [
         AppsService,
         AppsV2Service,

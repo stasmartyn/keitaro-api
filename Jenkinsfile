@@ -10,9 +10,9 @@ pipeline {
 
     environment {
         SERVICE = "keitaro_api_ts"
-        GIT_REPO_URL = 'git@github.com:TBAppTech/keitaro_api_ts.git'
-        GIT_CREDENTIAL = "TBAppTech_GitHub"
-        DOCKER_REGISTRY = "857235393156.dkr.ecr.eu-central-1.amazonaws.com"
+        GIT_REPO_URL = 'git@github.com:0xTec/keitaro_api_ts.git'
+        GIT_CREDENTIAL = "0xTec_Github"
+        DOCKER_REGISTRY = credentials('DOCKER_REGISTRY')
         DOCKER_REGISTRY_CREDENTIAL = "aws-ecr-creds"
         AWS_REGION = "eu-central-1"
         PROJECT_PATH = "."

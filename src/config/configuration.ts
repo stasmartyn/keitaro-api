@@ -75,13 +75,6 @@ export default () => ({
         // Pagination
         campaignsPageSize: parseInt(process.env.CAMPAIGNS_PAGE_SIZE, 10) || 100,
     },
-    database: {
-        dev_uri: process.env.MONGO_DATABASE_URI_DEV,
-        prod_uri: process.env.MONGO_DATABASE_URI,
-        campaign_users_dev_uri:
-            process.env.MONGO_CAMPAIGN_USERS_DATABASE_URI_DEV,
-        campaign_users_prod_uri: process.env.MONGO_CAMPAIGN_USERS_DATABASE_URI,
-    },
     redis: {
         host: process.env.REDIS_HOST || "localhost",
         port: parseInt(process.env.REDIS_PORT, 10) || 6379,

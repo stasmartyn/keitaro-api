@@ -1,7 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigService } from "@nestjs/config";
 import { BadRequestException } from "@nestjs/common";
-import { Model } from "mongoose";
 
 import { AppsService } from "../v1/apps.service";
 import { KeitaroService } from "../../keitaro/keitaro.service";
@@ -11,22 +10,14 @@ import { CreateAppDto } from "../dto/create-app.dto";
 
 jest.spyOn(Logger, "error").mockImplementation(() => {});
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
-import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
-import { CampaignUserDocument } from "../../database/schemas/campaign-user.model";
-import { IosAppDocument } from "../../database/schemas/ios-app.model";
-import { AndroidAppDocument } from "../../database/schemas/android-app.model";
-import { ProvidersDB } from "../../common/enums/db-enums";
 
 describe("AppsService", () => {
     let service: AppsService;
     let keitaroService: jest.Mocked<KeitaroService>;
     let configService: jest.Mocked<ConfigService>;
-    let campaignUserModel: jest.Mocked<Model<CampaignUserDocument>>;
-    let iosAppModel: jest.Mocked<Model<IosAppDocument>>;
-    let androidAppModel: jest.Mocked<Model<AndroidAppDocument>>;
 
     const mockCreateAppResult: CreateAppResultInterface = {
         trafficSourceId: 123,
@@ -104,27 +95,6 @@ describe("AppsService", () => {
         state: "active",
     };
 
-    const mockBuyer = {
-        _id: "buyer123",
-        sub: "buyer123",
-        nickName: "Test Buyer",
-        group_id: "1",
-    };
-
-    const mockIosApp = {
-        _id: "ios123",
-        bundleID: "com.test.ios",
-        name: "Test iOS App",
-        keitaroID: 123,
-    };
-
-    const mockAndroidApp = {
-        _id: "android123",
-        bundleID: "com.test.android",
-        name: "Test Android App",
-        keitaroID: 456,
-    };
-
     const mockOffer = {
         id: 123,
         name: "Test Offer",
@@ -142,8 +112,6 @@ describe("AppsService", () => {
             deleteResource: jest.fn(),
             getOfferById: jest.fn(),
             createStream: jest.fn(),
-            updateNoOrgCampaignPostback: jest.fn(),
-            createNoORGCampaignStreams: jest.fn(),
         };
 
         const mockConfigService = {
@@ -152,18 +120,6 @@ describe("AppsService", () => {
 
         const mockCampaignDataService = {
             getCampaignData: jest.fn(),
-        };
-
-        const mockCampaignUserModel = {
-            findOne: jest.fn(),
-        };
-
-        const mockIosAppModel = {
-            findOne: jest.fn(),
-        };
-
-        const mockAndroidAppModel = {
-            findOne: jest.fn(),
         };
 
         const module: TestingModule = await Test.createTestingModule({
@@ -181,27 +137,12 @@ describe("AppsService", () => {
                     provide: ConfigService,
                     useValue: mockConfigService,
                 },
-                {
-                    provide: ProvidersDB.CAMPAIGN_USER,
-                    useValue: mockCampaignUserModel,
-                },
-                {
-                    provide: ProvidersDB.IOS_APP,
-                    useValue: mockIosAppModel,
-                },
-                {
-                    provide: ProvidersDB.ANDROID_APP,
-                    useValue: mockAndroidAppModel,
-                },
             ],
         }).compile();
 
         service = module.get<AppsService>(AppsService);
         keitaroService = module.get(KeitaroService);
         configService = module.get(ConfigService);
-        campaignUserModel = module.get(ProvidersDB.CAMPAIGN_USER);
-        iosAppModel = module.get(ProvidersDB.IOS_APP);
-        androidAppModel = module.get(ProvidersDB.ANDROID_APP);
     });
 
     it("should be defined", () => {
@@ -373,73 +314,6 @@ describe("AppsService", () => {
             await expect(service.copyCampaign(invalidDto)).rejects.toThrow(
                 BadRequestException,
             );
-        });
-    });
-
-    describe("createNoOrgCampaign", () => {
-        const createNoOrgCampaignDto: CreateNoOrgCampaignDto = {
-            name: "No Org Campaign",
-            bundle: "com.test.ios",
-            buyerId: "buyer123",
-        };
-
-        it("should create no org campaign successfully for iOS app", async () => {
-            campaignUserModel.findOne.mockResolvedValue(mockBuyer as any);
-            iosAppModel.findOne.mockResolvedValue(mockIosApp as any);
-            keitaroService.createCampaign.mockResolvedValue(mockCampaign);
-            keitaroService.updateNoOrgCampaignPostback.mockResolvedValue({});
-            keitaroService.createNoORGCampaignStreams.mockResolvedValue({});
-
-            const result = await service.createNoOrgCampaign(
-                createNoOrgCampaignDto,
-            );
-
-            expect(result).toBeDefined();
-            expect((result as any).trafficSourceId).toBe(mockIosApp.keitaroID);
-            expect(keitaroService.createCampaign).toHaveBeenCalled();
-        });
-
-        it("should create no org campaign successfully for Android app", async () => {
-            const androidDto = {
-                ...createNoOrgCampaignDto,
-                bundle: "com.test.android",
-            };
-
-            campaignUserModel.findOne.mockResolvedValue(mockBuyer as any);
-            iosAppModel.findOne.mockResolvedValue(null);
-            androidAppModel.findOne.mockResolvedValue(mockAndroidApp as any);
-            keitaroService.createCampaign.mockResolvedValue(mockCampaign);
-            keitaroService.updateNoOrgCampaignPostback.mockResolvedValue({});
-            keitaroService.createNoORGCampaignStreams.mockResolvedValue({});
-
-            const result = await service.createNoOrgCampaign(androidDto);
-
-            expect(result).toBeDefined();
-            expect((result as any).trafficSourceId).toBe(
-                mockAndroidApp.keitaroID,
-            );
-        });
-
-        it("should throw BadRequestException for missing required fields", async () => {
-            const invalidDto = {
-                name: "",
-                bundle: "",
-                buyerId: "",
-            } as CreateNoOrgCampaignDto;
-
-            await expect(
-                service.createNoOrgCampaign(invalidDto),
-            ).rejects.toThrow(BadRequestException);
-        });
-
-        it("should throw BadRequestException when app not found", async () => {
-            campaignUserModel.findOne.mockResolvedValue(mockBuyer as any);
-            iosAppModel.findOne.mockResolvedValue(null);
-            androidAppModel.findOne.mockResolvedValue(null);
-
-            await expect(
-                service.createNoOrgCampaign(createNoOrgCampaignDto),
-            ).rejects.toThrow(BadRequestException);
         });
     });
 
