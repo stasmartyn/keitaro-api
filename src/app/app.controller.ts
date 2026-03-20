@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { AppService } from "./app.service";
 import { RedisService } from "../redis/redis.service";
+import { Public } from "../auth/public.decorator";
 
 @Controller()
 export class AppController {
@@ -14,6 +15,7 @@ export class AppController {
         return this.appService.getHello();
     }
 
+    @Public()
     @Get("health")
     async getHealth() {
         const redisStatus = await this.redisService.ping();
