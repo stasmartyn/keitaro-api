@@ -1672,7 +1672,7 @@ export class KeitaroService {
     }
 
     async createRentCampaign(groupId: number, offerId: number, name: string) {
-        const cloneUrl = this.buildUrl(`admin_api/v1/campaigns/4509/clone`);
+        const cloneUrl = this.buildUrl(`admin_api/v1/campaigns/43/clone`);
 
         try {
             const { data: template } = await axios.post(
@@ -1699,7 +1699,7 @@ export class KeitaroService {
             const newCampaignData = {
                 alias,
                 group_id: groupId,
-                traffic_source_id: 918,
+                traffic_source_id: template[0].traffic_source_id,
                 name: `[Rent client] iOS ${name} ${alias}`,
                 state: "active",
             };
@@ -1762,6 +1762,7 @@ export class KeitaroService {
             return {
                 alias: campaign.alias,
                 clickApiToken: campaign.token,
+                campaignId: campaign.id,
             };
         } catch (error) {
             if (error instanceof axios.AxiosError) {
