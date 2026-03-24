@@ -10,9 +10,9 @@ pipeline {
 
     environment {
         SERVICE = "keitaro_api_ts"
-        GIT_REPO_URL = 'git@github.com:TBAppTech/keitaro_api_ts.git'
-        GIT_CREDENTIAL = "TBAppTech_GitHub"
-        DOCKER_REGISTRY = "857235393156.dkr.ecr.eu-central-1.amazonaws.com"
+        GIT_REPO_URL = 'git@github.com:0xTec/keitaro_api_ts.git'
+        GIT_CREDENTIAL = "0xTec_Github"
+        DOCKER_REGISTRY = credentials('DOCKER_REGISTRY')
         DOCKER_REGISTRY_CREDENTIAL = "aws-ecr-creds"
         AWS_REGION = "eu-central-1"
         PROJECT_PATH = "."
@@ -180,7 +180,7 @@ pipeline {
                 def branch = env.BUILD_BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                 def imageTag = env.IMAGE_TAG ?: 'N/A'
                 def message = """
-❌ *FAILURE: '${env.JOB_NAME}' failed!* @aliens199
+❌ *FAILURE: '${env.JOB_NAME}' failed!* @artem_full_stack
 ━━━━━━━━━━━━━━━━━━━━━━━
 🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
 🌿 *Branch:* ${branch}
