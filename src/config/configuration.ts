@@ -15,10 +15,6 @@ export default () => ({
             process.env.IOS_CLO_CAMPAIGN_TEMPLATE_ID,
             10,
         ),
-        newFlowCloCampaignTemplateId: parseInt(
-            process.env.NEW_FLOW_CLO_CAMPAIGN_TEMPLATE_ID,
-            10,
-        ),
         iosOrgCampaignTemplateId: parseInt(
             process.env.IOS_ORG_CAMPAIGN_TEMPLATE_ID,
             10,
@@ -35,14 +31,6 @@ export default () => ({
         androidSubId: process.env.ANDROID_SUB_ID,
         testFlowOfferId: parseInt(
             process.env.KEITARO_TEST_FLOW_OFFER_ID || "3412",
-            10,
-        ),
-        emptyCampaignTemplateIdDev: parseInt(
-            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_DEV,
-            10,
-        ),
-        emptyCampaignTemplateIdProd: parseInt(
-            process.env.EMPTY_CAMPAIGN_TEMPLATE_ID_PROD,
             10,
         ),
     },
@@ -74,10 +62,6 @@ export default () => ({
 
         // Pagination
         campaignsPageSize: parseInt(process.env.CAMPAIGNS_PAGE_SIZE, 10) || 100,
-    },
-    database: {
-        dev_uri: process.env.MONGO_DATABASE_URI_DEV,
-        prod_uri: process.env.MONGO_DATABASE_URI,
     },
     redis: {
         host: process.env.REDIS_HOST || "localhost",

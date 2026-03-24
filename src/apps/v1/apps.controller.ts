@@ -5,9 +5,7 @@ import { AppsService } from "./apps.service";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { VersionController } from "../../utils/version.decorator";
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
-import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
-import { CreateEmptyCampaignDto } from "../dto/create-empty-campaign.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateRentCampaignDto } from "../dto/create-rent.campaign.dto";
 import { UpdateCampaignDto } from "../dto/update-campaign.dto";
@@ -79,19 +77,9 @@ export class AppsController {
         }
     }
 
-    @Post("create-no-org-campaign")
-    async createNoOrgCampaign(@Body() body: CreateNoOrgCampaignDto) {
-        return this.appsService.createNoOrgCampaign(body);
-    }
-
     @Post("create-by-offer")
     async createByOffer(@Body() body: CreateByOfferDto) {
         return this.appsService.createByOffer(body);
-    }
-
-    @Post("create-empty-campaign")
-    async createEmptyCampaign(@Body() body: CreateEmptyCampaignDto) {
-        return this.appsService.createEmptyCampaign(body);
     }
 
     @Post("create-onelink-campaign")
