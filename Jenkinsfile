@@ -180,7 +180,7 @@ pipeline {
                 def branch = env.BUILD_BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                 def imageTag = env.IMAGE_TAG ?: 'N/A'
                 def message = """
-❌ *FAILURE: '${env.JOB_NAME}' failed!* @aliens199
+❌ *FAILURE: '${env.JOB_NAME}' failed!* @artem_full_stack
 ━━━━━━━━━━━━━━━━━━━━━━━
 🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
 🌿 *Branch:* ${branch}

@@ -3,7 +3,6 @@ import { AppsController } from "../v1/apps.controller";
 import { AppsService } from "../v1/apps.service";
 import { CreateAppDto } from "../dto/create-app.dto";
 import { CopyCampaignDto } from "../dto/copy-campaign.dto";
-import { CreateNoOrgCampaignDto } from "../dto/create-no-org-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
@@ -58,17 +57,6 @@ describe("AppsController", () => {
         token: "copied-token",
         traffic_source_id: 1,
         group_id: 1,
-    };
-
-    const mockNoOrgCampaign = {
-        trafficSourceId: 123,
-        noOrgCampaign: {
-            campaignId: "456",
-            campaignToken: "no-org-token",
-            campaignAlias: "no-org-alias",
-        },
-        name: "No Org Campaign",
-        alias: "no-org-alias",
     };
 
     const mockByOfferResult = {
@@ -227,57 +215,6 @@ describe("AppsController", () => {
             ).rejects.toThrow();
             expect(appsService.copyCampaign).toHaveBeenCalledWith(
                 copyCampaignDto,
-            );
-        });
-    });
-
-    describe("POST /v1/apps/create-no-org-campaign", () => {
-        const createNoOrgCampaignDto: CreateNoOrgCampaignDto = {
-            name: "No Org Campaign",
-            bundle: "com.test.app",
-            buyerId: "buyer123",
-        };
-
-        it("should create no org campaign successfully", async () => {
-            jest.spyOn(appsService, "createNoOrgCampaign").mockResolvedValue(
-                mockNoOrgCampaign,
-            );
-
-            const result = await controller.createNoOrgCampaign(
-                createNoOrgCampaignDto,
-            );
-
-            expect(appsService.createNoOrgCampaign).toHaveBeenCalledWith(
-                createNoOrgCampaignDto,
-            );
-            expect(result).toEqual(mockNoOrgCampaign);
-        });
-
-        it("should handle validation error", async () => {
-            const validationError = new Error("Validation failed");
-            jest.spyOn(appsService, "createNoOrgCampaign").mockRejectedValue(
-                validationError,
-            );
-
-            await expect(
-                controller.createNoOrgCampaign(createNoOrgCampaignDto),
-            ).rejects.toThrow();
-            expect(appsService.createNoOrgCampaign).toHaveBeenCalledWith(
-                createNoOrgCampaignDto,
-            );
-        });
-
-        it("should handle service error", async () => {
-            const serviceError = new Error("Service error");
-            jest.spyOn(appsService, "createNoOrgCampaign").mockRejectedValue(
-                serviceError,
-            );
-
-            await expect(
-                controller.createNoOrgCampaign(createNoOrgCampaignDto),
-            ).rejects.toThrow();
-            expect(appsService.createNoOrgCampaign).toHaveBeenCalledWith(
-                createNoOrgCampaignDto,
             );
         });
     });
