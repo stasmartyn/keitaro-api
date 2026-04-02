@@ -1700,7 +1700,7 @@ export class KeitaroService {
                 alias,
                 group_id: groupId,
                 traffic_source_id: template[0].traffic_source_id,
-                name: `[Rent client] iOS ${name} ${alias}`,
+                name: `${name} ${alias}`,
                 state: "active",
             };
             const campaignUrl = this.buildUrl(
