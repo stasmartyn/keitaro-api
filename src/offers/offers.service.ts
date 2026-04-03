@@ -139,6 +139,11 @@ export class OffersService {
 
     private async createRentOfferInternal(body: CreateRentOfferDto) {
         const { name, domain } = body;
+        const linkTemplate =
+            typeof body.linkTemplate === "string" &&
+            body.linkTemplate.trim() !== ""
+                ? body.linkTemplate.trim()
+                : null;
 
         if (!name || !domain) {
             throw new BadRequestException("Missing required fields.");
@@ -149,7 +154,9 @@ export class OffersService {
             group_id: 10,
             offer_type: "external",
             action_type: "http",
-            action_payload: `https://${domain}/{sub9}?sub2={sub2}&sub3={sub3}&sub4={sub4}&sub5={sub5}&sub6={sub6}&sub7={sub7}&sub8={sub8}&sub9={sub9}&external_id={subid}&bundle_id={bundle_id}&naming={naming}`,
+            action_payload:
+                linkTemplate ??
+                `https://${domain}/{sub9}?sub2={sub2}&sub3={sub3}&sub4={sub4}&sub5={sub5}&sub6={sub6}&sub7={sub7}&sub8={sub8}&sub9={sub9}&external_id={subid}&bundle_id={bundle_id}&naming={naming}`,
             state: "active",
         };
 
