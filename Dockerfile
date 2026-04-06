@@ -23,6 +23,11 @@ FROM node:20-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 
+RUN apk add --no-cache bash wget \
+    && wget -qO- 'https://artifacts-cli.infisical.com/setup.apk.sh' | sh \
+    && apk update \
+    && apk add --no-cache infisical
+
 # Install only production dependencies; skip scripts to avoid dev hooks (husky)
 COPY --from=deps /app/package*.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
