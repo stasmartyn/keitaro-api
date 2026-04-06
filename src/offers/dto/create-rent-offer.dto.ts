@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateRentOfferDto {
     @IsString()
@@ -8,4 +8,8 @@ export class CreateRentOfferDto {
     @IsString()
     @IsNotEmpty()
     domain: string;
+
+    @IsString()
+    @IsOptional()
+    linkTemplate?: string;
 }
