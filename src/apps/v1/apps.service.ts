@@ -76,6 +76,52 @@ export class AppsService {
         return (copiedCampaign as ICampaign) || null;
     }
 
+    private normalizeCampaignList(payload: unknown): ICampaign[] {
+        if (Array.isArray(payload)) {
+            return payload as ICampaign[];
+        }
+
+        if (!payload || typeof payload !== "object") {
+            return [];
+        }
+
+        const record = payload as Record<string, unknown>;
+        const candidates: unknown[] = [
+            record.data,
+            record.campaigns,
+            record.items,
+            record.results,
+            (record.data as Record<string, unknown> | undefined)?.items,
+            (record.data as Record<string, unknown> | undefined)?.campaigns,
+            (record.result as Record<string, unknown> | undefined)?.items,
+            (record.result as Record<string, unknown> | undefined)?.campaigns,
+        ];
+
+        for (const candidate of candidates) {
+            if (Array.isArray(candidate)) {
+                return candidate as ICampaign[];
+            }
+        }
+
+        return [];
+    }
+
+    private async findCampaignByExactName(
+        name: string,
+    ): Promise<ICampaign | null> {
+        const payload = await this.keitaroClient.getAllCampaigns();
+        const campaigns = this.normalizeCampaignList(payload);
+        const expected = name.trim().toLowerCase();
+
+        return (
+            campaigns.find(
+                (campaign) =>
+                    typeof campaign?.name === "string" &&
+                    campaign.name.trim().toLowerCase() === expected,
+            ) || null
+        );
+    }
+
     async getAllCampaigns() {
         const getAllCampaignsWithErrorHandler = wrapWithErrorHandler(
             this.getAllCampaignsInternal.bind(this),
@@ -678,6 +724,52 @@ export class AppsService {
         if (typeof id !== "number" || isNaN(id) || id <= 0) {
             throw new BadRequestException(
                 `Invalid campaign template ID: ${id}. Must be a positive number.`,
+            );
+        }
+
+        const existingCampaign = await this.findCampaignByExactName(name);
+        if (existingCampaign) {
+            Logger.info(
+                "[copyCampaignInternal] Campaign already exists, reusing",
+                {
+                    existingCampaignId: existingCampaign.id,
+                    name: existingCampaign.name,
+                },
+                "AppsService.copyCampaignInternal",
+            );
+
+            if (!change_parameters) {
+                return existingCampaign;
+            }
+
+            const user_id_placeholder =
+                sub_id && typeof sub_id === "string" && sub_id.trim() !== ""
+                    ? sub_id
+                    : "{user_id}";
+
+            const updateData: any = {
+                parameters: {
+                    ...(existingCampaign.parameters || {}),
+                    sub_id_15: {
+                        name: "user_id",
+                        placeholder: user_id_placeholder,
+                        alias: "",
+                    },
+                },
+            };
+
+            Logger.info(
+                "[copyCampaignInternal] Updating existing campaign parameters",
+                {
+                    existingCampaignId: existingCampaign.id,
+                    hasSubId: !!sub_id,
+                },
+                "AppsService.copyCampaignInternal",
+            );
+
+            return await this.keitaroClient.updateCampaign(
+                Number(existingCampaign.id),
+                updateData,
             );
         }
 
