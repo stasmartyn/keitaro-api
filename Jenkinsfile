@@ -38,7 +38,7 @@ pipeline {
         TELEGRAM_BOT_TOKEN = credentials('TELEGRAM_BOT_TOKEN')
         TELEGRAM_CHAT_ID   = credentials('TELEGRAM_CHAT_ID')
 
-        TRIVY_IMAGE = "aquasec/trivy:${env.TRIVY_IMAGE_TAG ?: '0.69.3'}"
+        TRIVY_IMAGE = "aquasec/trivy:${env.TRIVY_IMAGE_TAG ?: '0.70.0'}"
         TRIVY_CACHE_DIR = '/tmp/trivy-cache'
     }
 
@@ -292,7 +292,7 @@ pipeline {
                 def imageTag = env.IMAGE_TAG ?: 'N/A'
                 def failedStage = env.LAST_STAGE ?: 'unknown'
                 def message = """
-❌ *FAILURE: '${env.JOB_NAME}' failed!* @artem_full_stack
+❌ *FAILURE: '${env.JOB_NAME}' failed!* @artem\\_full\\_stack
 ━━━━━━━━━━━━━━━━━━━━━━━
 🔨 *Job/Build:* [${env.JOB_NAME} #${env.BUILD_NUMBER}](${env.BUILD_URL})
 🌿 *Branch:* ${branch}
