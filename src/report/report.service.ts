@@ -65,6 +65,8 @@ export class ReportService {
                 timezone: "Europe/Warsaw",
                 interval: "custom_date_range",
             },
+            // Keitaro applies limit to the first dimension (day), not to total rows.
+            // Max date range is 31 days → at most 31 day-groups returned; 5000 is unreachable.
             limit: 5000,
             dimensions: ["day", "offer_group_id", "campaign_id"],
             offset: 0,

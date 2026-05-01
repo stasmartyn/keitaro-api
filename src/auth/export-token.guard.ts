@@ -31,11 +31,11 @@ export class ExportTokenGuard implements CanActivate {
             throw new UnauthorizedException("Authorization header is required");
         }
 
-        const [scheme, token] = authHeader.split(" ");
-
-        if (scheme !== "Bearer" || !token) {
+        const match = /^Bearer\s+(\S+)$/i.exec(authHeader.trim());
+        if (!match) {
             throw new UnauthorizedException("Invalid authorization format");
         }
+        const token = match[1];
 
         const tokenBuf = Buffer.from(token);
         const expectedBuf = Buffer.from(this.expectedToken);

@@ -43,6 +43,7 @@ export class ReportController {
         return this.reportService.clicksLog(body);
     }
 
+    /** Навмисно публічний: глобальний TokenGuard ігнорується; доступ лише через Bearer EXPORT_TOKEN (ExportTokenGuard). */
     @Public()
     @UseGuards(ExportTokenGuard)
     @UsePipes(EXPORT_VALIDATION_PIPE)
