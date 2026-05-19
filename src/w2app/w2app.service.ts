@@ -68,9 +68,36 @@ export class W2appService {
     }> {
         this.validateSplitApps(dto.apps);
 
-        const campaignPayload = buildSplitCampaignPayload(
-            dto,
-            this.getW2appCampaignGroupId(),
+        const campaignGroupId = this.getW2appCampaignGroupId();
+        const campaignPayload = buildSplitCampaignPayload(dto, campaignGroupId);
+        const plannedStreams = [
+            ...dto.apps.map((app, index) => ({
+                kind: "regular" as const,
+                appId: app.appId,
+                payload: buildRegularSplitStream(app, index + 1),
+            })),
+            {
+                kind: "default" as const,
+                payload: buildDefaultSplitStream(
+                    dto.defaultStream,
+                    dto.apps.length + 1,
+                ),
+            },
+        ];
+
+        Logger.info(
+            "POST /v1/w2app/split-campaign — вхідний запит",
+            {
+                incomingBody: dto,
+                campaignGroupId,
+                campaignPayload,
+                plannedStreams: plannedStreams.map((stream) => ({
+                    kind: stream.kind,
+                    appId: stream.kind === "regular" ? stream.appId : undefined,
+                    payload: stream.payload,
+                })),
+            },
+            "W2appService",
         );
 
         let campaignIdForRollback: number | null = null;
@@ -92,9 +119,10 @@ export class W2appService {
             }> = [];
 
             for (const [index, app] of dto.apps.entries()) {
+                const streamPayload = buildRegularSplitStream(app, index + 1);
                 const createdStream = await this.keitaroService.createStream(
                     campaignIdForRollback,
-                    buildRegularSplitStream(app, index + 1),
+                    streamPayload,
                 );
                 streamIds.push({
                     appId: app.appId,
@@ -103,9 +131,13 @@ export class W2appService {
                 });
             }
 
+            const defaultStreamPayload = buildDefaultSplitStream(
+                dto.defaultStream,
+                dto.apps.length + 1,
+            );
             const defaultStream = await this.keitaroService.createStream(
                 campaignIdForRollback,
-                buildDefaultSplitStream(dto.defaultStream, dto.apps.length + 1),
+                defaultStreamPayload,
             );
 
             return {
@@ -116,6 +148,15 @@ export class W2appService {
                 defaultStreamId: Number(defaultStream.id),
             };
         } catch (error) {
+            Logger.error(
+                "POST /v1/w2app/split-campaign — помилка provision",
+                {
+                    campaignIdForRollback,
+                    errorMessage:
+                        error instanceof Error ? error.message : String(error),
+                },
+                "W2appService",
+            );
             await this.rollbackCampaignIfNeeded(campaignIdForRollback, error);
             throw error;
         }

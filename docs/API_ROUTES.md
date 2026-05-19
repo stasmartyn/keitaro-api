@@ -63,17 +63,17 @@
 
 ## W2App — `/api/v1/w2app`
 
-| Метод | Шлях | Body (DTO) / Params | Відповідь |
-| ----- | ---- | ------------------- | --------- |
-| POST  | `/api/v1/w2app/split-campaign` | **CreateSplitCampaignDto**: `campaignName`, `campaignType`, `uniquenessMethod`, `cookiesTtlHours`, `bindVisitors`, `apps[]`, `parameters`, `defaultStream` | **SplitCampaignResult**: `campaignId`, `campaignToken`, `campaignAlias`, `streamIds[]`, `defaultStreamId` |
-| PUT   | `/api/v1/w2app/split-campaign/:id` | **UpdateSplitCampaignDto**: `apps?`, `parameters?` | `204` |
-| GET   | `/api/v1/w2app/split-campaign/:id` | param: `id` | **SplitCampaignState**: `campaignId`, `apps[]` (`appId`, `offerId`, `weight`, `isActive`) |
-| PUT   | `/api/v1/w2app/split-campaign/:id/disable` | param: `id` | `204` |
-| POST  | `/api/v1/w2app/split-campaign/:id/ban-app` | **BanAppDto**: `appId` | `204` |
-| POST  | `/api/v1/w2app/split-campaign/:id/unban-app` | **BanAppDto**: `appId` | `204` |
-| POST  | `/api/v1/w2app/naming-campaign` | **CreateNamingCampaignDto**: `flowName`, `groupId?`, `aliases` | **NamingCampaignResult**: `campaignId`, `campaignToken` |
-| PUT   | `/api/v1/w2app/naming-campaign/:id` | **UpdateNamingCampaignDto**: `aliases` | `204` |
-| PUT   | `/api/v1/w2app/naming-campaign/:id/disable` | param: `id` | `204` |
+| Метод | Шлях                                         | Body (DTO) / Params                                                                                                                                        | Відповідь                                                                                                 |
+| ----- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| POST  | `/api/v1/w2app/split-campaign`               | **CreateSplitCampaignDto**: `campaignName`, `campaignType`, `uniquenessMethod`, `cookiesTtlHours`, `bindVisitors`, `apps[]`, `parameters`, `defaultStream` | **SplitCampaignResult**: `campaignId`, `campaignToken`, `campaignAlias`, `streamIds[]`, `defaultStreamId` |
+| PUT   | `/api/v1/w2app/split-campaign/:id`           | **UpdateSplitCampaignDto**: `apps?`, `parameters?`                                                                                                         | `204`                                                                                                     |
+| GET   | `/api/v1/w2app/split-campaign/:id`           | param: `id`                                                                                                                                                | **SplitCampaignState**: `campaignId`, `apps[]` (`appId`, `offerId`, `weight`, `isActive`)                 |
+| PUT   | `/api/v1/w2app/split-campaign/:id/disable`   | param: `id`                                                                                                                                                | `204`                                                                                                     |
+| POST  | `/api/v1/w2app/split-campaign/:id/ban-app`   | **BanAppDto**: `appId`                                                                                                                                     | `204`                                                                                                     |
+| POST  | `/api/v1/w2app/split-campaign/:id/unban-app` | **BanAppDto**: `appId`                                                                                                                                     | `204`                                                                                                     |
+| POST  | `/api/v1/w2app/naming-campaign`              | **CreateNamingCampaignDto**: `flowName`, `groupId?`, `aliases`                                                                                             | **NamingCampaignResult**: `campaignId`, `campaignToken`                                                   |
+| PUT   | `/api/v1/w2app/naming-campaign/:id`          | **UpdateNamingCampaignDto**: `aliases`                                                                                                                     | `204`                                                                                                     |
+| PUT   | `/api/v1/w2app/naming-campaign/:id/disable`  | param: `id`                                                                                                                                                | `204`                                                                                                     |
 
 ---
 
