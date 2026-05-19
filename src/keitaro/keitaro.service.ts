@@ -23,6 +23,12 @@ import { CreateCampaignInterface } from "./interfaces/create-campaign.interface"
 import { generateUniqueAlias } from "../utils/generateUniqueAlias";
 import { SyncAppResultInterface } from "../apps/interfaces/sync-app-result.interface";
 
+type CreateCampaignRawResponse = {
+    id: number;
+    token?: string;
+    alias?: string;
+};
+
 @Injectable()
 export class KeitaroService {
     private static readonly STREAM_NAMES = {
@@ -390,6 +396,24 @@ export class KeitaroService {
             return response.data;
         } catch (error) {
             this.handleKeitaroError(this.createCampaign.name, error);
+        }
+    }
+
+    async createCampaignRaw(
+        payload: Record<string, unknown>,
+    ): Promise<CreateCampaignRawResponse> {
+        try {
+            const url = this.buildUrl("admin_api/v1/campaigns");
+            const response = await axios.post<CreateCampaignRawResponse>(
+                url,
+                payload,
+                {
+                    headers: this.generateHeaders(),
+                },
+            );
+            return response.data;
+        } catch (error) {
+            this.handleKeitaroError(this.createCampaignRaw.name, error);
         }
     }
 

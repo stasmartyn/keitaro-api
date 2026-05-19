@@ -15,6 +15,7 @@ import { ReportModule } from "../report/report.module";
 import { FailoverModule } from "../failover/failover.module";
 import { RedisModule } from "../redis/redis.module";
 import { QueueModule } from "../queue/queue.module";
+import { W2appModule } from "../w2app/w2app.module";
 
 @Module({
     imports: [
@@ -31,6 +32,7 @@ import { QueueModule } from "../queue/queue.module";
         KeitaroModule,
         ReportModule,
         FailoverModule,
+        W2appModule,
     ],
     controllers: [AppController],
     providers: [
