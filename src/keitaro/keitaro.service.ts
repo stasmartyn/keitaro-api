@@ -402,10 +402,8 @@ export class KeitaroService {
     async createCampaignRaw(
         payload: Record<string, unknown>,
     ): Promise<CreateCampaignRawResponse> {
-        const adminApiPath = "admin_api/v1/campaigns";
         try {
-            const url = this.buildUrl(adminApiPath);
-            this.logKeitaroAdminRequest("POST", adminApiPath, payload);
+            const url = this.buildUrl("admin_api/v1/campaigns");
             const response = await axios.post<CreateCampaignRawResponse>(
                 url,
                 payload,
@@ -413,19 +411,8 @@ export class KeitaroService {
                     headers: this.generateHeaders(),
                 },
             );
-            Logger.info(
-                "Keitaro Admin API success",
-                {
-                    ...this.getKeitaroConnectionMeta(),
-                    method: "POST",
-                    adminApiPath,
-                    campaignId: response.data?.id,
-                },
-                "KeitaroService",
-            );
             return response.data;
         } catch (error) {
-            this.logKeitaroAdminError("POST", adminApiPath, error);
             this.handleKeitaroError(this.createCampaignRaw.name, error);
         }
     }
@@ -1663,40 +1650,18 @@ export class KeitaroService {
     }
 
     async createStream(campaignId: number, streamData: any) {
-        const adminApiPath = "admin_api/v1/streams";
-        const params = {
-            campaign_id: campaignId,
-            ...streamData,
-        };
         try {
-            const url = this.buildUrl(adminApiPath);
-            this.logKeitaroAdminRequest("POST", adminApiPath, params, {
-                campaignId,
-                streamName: streamData?.name,
-                streamType: streamData?.type,
-            });
+            const url = this.buildUrl("admin_api/v1/streams");
+            const params = {
+                campaign_id: campaignId,
+                ...streamData,
+            };
             const response = await axios.post(url, params, {
                 headers: this.generateHeaders(),
             });
 
-            Logger.info(
-                "Keitaro Admin API success",
-                {
-                    ...this.getKeitaroConnectionMeta(),
-                    method: "POST",
-                    adminApiPath,
-                    campaignId,
-                    streamId: response.data?.id,
-                },
-                "KeitaroService",
-            );
             return response.data;
         } catch (error) {
-            this.logKeitaroAdminError("POST", adminApiPath, error, {
-                campaignId,
-                streamName: streamData?.name,
-                streamType: streamData?.type,
-            });
             this.handleKeitaroError(this.createStream.name, error);
         }
     }
@@ -1944,89 +1909,7 @@ export class KeitaroService {
             );
         }
 
-        const trimmed = keitaroDomain.trim();
-        if (trimmed !== keitaroDomain) {
-            Logger.warn(
-                "KEITARO_DOMAIN has leading/trailing whitespace — trimmed for requests",
-                {
-                    originalLength: keitaroDomain.length,
-                    trimmedLength: trimmed.length,
-                },
-                "KeitaroService",
-            );
-        }
-
-        return trimmed;
-    }
-
-    private getKeitaroConnectionMeta(): Record<string, unknown> {
-        const nodeEnv = this.configService.get<string>("NODE_ENV");
-        let keitaroBaseUrl: string | null = null;
-        try {
-            keitaroBaseUrl = this.resolveKeitaroDomain();
-        } catch {
-            keitaroBaseUrl = null;
-        }
-
-        return {
-            nodeEnv,
-            keitaroBaseUrl,
-        };
-    }
-
-    private logKeitaroAdminRequest(
-        method: string,
-        adminApiPath: string,
-        payload: unknown,
-        extra?: Record<string, unknown>,
-    ): void {
-        Logger.info(
-            "Keitaro Admin API request",
-            {
-                ...this.getKeitaroConnectionMeta(),
-                method,
-                adminApiPath,
-                payload,
-                ...extra,
-            },
-            "KeitaroService",
-        );
-    }
-
-    private logKeitaroAdminError(
-        method: string,
-        adminApiPath: string,
-        error: unknown,
-        extra?: Record<string, unknown>,
-    ): void {
-        if (axios.isAxiosError(error)) {
-            Logger.error(
-                "Keitaro Admin API error",
-                {
-                    ...this.getKeitaroConnectionMeta(),
-                    method,
-                    adminApiPath,
-                    httpStatus: error.response?.status,
-                    responseBody: error.response?.data,
-                    ...extra,
-                },
-                "KeitaroService",
-            );
-            return;
-        }
-
-        Logger.error(
-            "Keitaro Admin API error",
-            {
-                ...this.getKeitaroConnectionMeta(),
-                method,
-                adminApiPath,
-                errorMessage:
-                    error instanceof Error ? error.message : String(error),
-                ...extra,
-            },
-            "KeitaroService",
-        );
+        return keitaroDomain.trim();
     }
 
     private generateHeaders() {

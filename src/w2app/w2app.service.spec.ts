@@ -262,6 +262,47 @@ describe("W2appService", () => {
         });
     });
 
+    it("createNamingCampaign повертає campaignId і token", async () => {
+        keitaroService.createCampaignRaw.mockResolvedValue({
+            id: 901,
+            token: "naming-token",
+        });
+
+        const result = await service.createNamingCampaign({
+            flowName: "Flow A",
+            aliases: { sub_id_1: "alias_1" },
+        });
+
+        expect(result).toEqual({
+            campaignId: 901,
+            campaignToken: "naming-token",
+        });
+        expect(keitaroService.createCampaignRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it("updateNamingCampaign оновлює parameters кампанії", async () => {
+        await service.updateNamingCampaign(902, {
+            aliases: { sub_id_2: "alias_2" },
+        });
+
+        expect(keitaroService.updateCampaign).toHaveBeenCalledWith(
+            902,
+            expect.objectContaining({
+                parameters: expect.objectContaining({
+                    sub_id_2: expect.objectContaining({ alias: "alias_2" }),
+                }),
+            }),
+        );
+    });
+
+    it("disableNamingCampaign вимикає кампанію", async () => {
+        await service.disableNamingCampaign(903);
+
+        expect(keitaroService.updateCampaign).toHaveBeenCalledWith(903, {
+            state: "disabled",
+        });
+    });
+
     it("createNamingCampaign кидає помилку, якщо Keitaro повернув невалідний id", async () => {
         keitaroService.createCampaignRaw.mockResolvedValue({
             id: Number.NaN,
