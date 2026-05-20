@@ -18,6 +18,7 @@ describe("W2appService", () => {
                     useValue: {
                         createCampaignRaw: jest.fn(),
                         createStream: jest.fn(),
+                        deleteResource: jest.fn(),
                         deleteCampaign: jest.fn(),
                         getCampaignStreams: jest.fn(),
                         updateCampaign: jest.fn(),
@@ -227,6 +228,37 @@ describe("W2appService", () => {
             state: "disabled",
             weight: 0,
         });
+    });
+
+    it("updateSplitCampaign видаляє створені streams при помилці другого createStream", async () => {
+        keitaroService.getCampaignStreams.mockResolvedValue([]);
+        keitaroService.createStream
+            .mockResolvedValueOnce({ id: 9001 })
+            .mockRejectedValueOnce(new Error("create failed"));
+
+        await expect(
+            service.updateSplitCampaign(10, {
+                apps: [
+                    {
+                        appId: "6fa58db8-ddf3-4990-a0bb-57f4974e7eec",
+                        offerId: 1,
+                        weight: 50,
+                        streamName: "New 1",
+                    },
+                    {
+                        appId: "ecf37f46-b90b-4f93-a996-9ce505f6f7f1",
+                        offerId: 2,
+                        weight: 50,
+                        streamName: "New 2",
+                    },
+                ],
+            }),
+        ).rejects.toThrow("create failed");
+
+        expect(keitaroService.deleteResource).toHaveBeenCalledWith(
+            "admin_api/v1/streams",
+            9001,
+        );
     });
 
     it("banAppInSplit відкочує вже оновлені streams при збої на target", async () => {

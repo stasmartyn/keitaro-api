@@ -177,6 +177,7 @@ export class W2appService {
             );
 
             const appliedSnapshots: StreamRollbackSnapshot[] = [];
+            const createdStreamIds: number[] = [];
 
             try {
                 for (const [index, app] of dto.apps.entries()) {
@@ -202,10 +203,14 @@ export class W2appService {
                     }
 
                     maxPosition += 1;
-                    await this.keitaroService.createStream(
+                    const created = await this.keitaroService.createStream(
                         campaignId,
                         buildRegularSplitStream(app, maxPosition),
                     );
+                    const createdStreamId = Number(created?.id);
+                    if (createdStreamId && !Number.isNaN(createdStreamId)) {
+                        createdStreamIds.push(createdStreamId);
+                    }
                 }
 
                 for (const stream of regularStreams) {
@@ -223,6 +228,7 @@ export class W2appService {
                 }
             } catch (error) {
                 await this.rollbackStreamSnapshots(appliedSnapshots);
+                await this.rollbackCreatedStreams(createdStreamIds);
                 throw error;
             }
         });
@@ -476,6 +482,19 @@ export class W2appService {
                     weight: snapshot.weight,
                     state: snapshot.state,
                 });
+            } catch {
+                // Rollback best-effort; primary error is rethrown to the client.
+            }
+        }
+    }
+
+    private async rollbackCreatedStreams(streamIds: number[]): Promise<void> {
+        for (const streamId of [...streamIds].reverse()) {
+            try {
+                await this.keitaroService.deleteResource(
+                    "admin_api/v1/streams",
+                    streamId,
+                );
             } catch {
                 // Rollback best-effort; primary error is rethrown to the client.
             }
