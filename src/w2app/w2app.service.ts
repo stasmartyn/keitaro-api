@@ -49,6 +49,17 @@ type SplitStateApp = {
     isActive: boolean;
 };
 
+type StreamRollbackSnapshot = {
+    id: number;
+    weight: number;
+    state: string;
+};
+
+type StreamUpdateStep = {
+    snapshot: StreamRollbackSnapshot;
+    payload: Record<string, unknown>;
+};
+
 @Injectable()
 export class W2appService {
     constructor(
@@ -165,37 +176,54 @@ export class W2appService {
                 ...regularStreams.map((stream) => Number(stream.position ?? 0)),
             );
 
-            for (const [index, app] of dto.apps.entries()) {
-                const existingStream = streamByAppId.get(app.appId);
-                touchedAppIds.add(app.appId);
+            const appliedSnapshots: StreamRollbackSnapshot[] = [];
 
-                if (existingStream) {
-                    await this.keitaroService.updateStream(existingStream.id, {
-                        ...buildRegularSplitStream(
-                            app,
-                            Number(existingStream.position ?? index + 1),
-                        ),
+            try {
+                for (const [index, app] of dto.apps.entries()) {
+                    const existingStream = streamByAppId.get(app.appId);
+                    touchedAppIds.add(app.appId);
+
+                    if (existingStream) {
+                        const snapshot =
+                            this.snapshotStreamState(existingStream);
+                        await this.keitaroService.updateStream(
+                            existingStream.id,
+                            {
+                                ...buildRegularSplitStream(
+                                    app,
+                                    Number(
+                                        existingStream.position ?? index + 1,
+                                    ),
+                                ),
+                            },
+                        );
+                        appliedSnapshots.push(snapshot);
+                        continue;
+                    }
+
+                    maxPosition += 1;
+                    await this.keitaroService.createStream(
+                        campaignId,
+                        buildRegularSplitStream(app, maxPosition),
+                    );
+                }
+
+                for (const stream of regularStreams) {
+                    const appId = parseStreamAppComment(stream.comments);
+                    if (!appId || touchedAppIds.has(appId)) {
+                        continue;
+                    }
+
+                    const snapshot = this.snapshotStreamState(stream);
+                    await this.keitaroService.updateStream(stream.id, {
+                        state: "disabled",
+                        weight: 0,
                     });
-                    continue;
+                    appliedSnapshots.push(snapshot);
                 }
-
-                maxPosition += 1;
-                await this.keitaroService.createStream(
-                    campaignId,
-                    buildRegularSplitStream(app, maxPosition),
-                );
-            }
-
-            for (const stream of regularStreams) {
-                const appId = parseStreamAppComment(stream.comments);
-                if (!appId || touchedAppIds.has(appId)) {
-                    continue;
-                }
-
-                await this.keitaroService.updateStream(stream.id, {
-                    state: "disabled",
-                    weight: 0,
-                });
+            } catch (error) {
+                await this.rollbackStreamSnapshots(appliedSnapshots);
+                throw error;
             }
         });
     }
@@ -256,18 +284,27 @@ export class W2appService {
                     stream.id !== target.id && Number(stream.weight ?? 0) > 0,
             );
             const rebalanced = rebalanceWeights(activeOthers);
+            const originalById = new Map(
+                activeOthers.map((stream) => [stream.id, stream]),
+            );
+            const steps: StreamUpdateStep[] = rebalanced.map((stream) => {
+                const original = originalById.get(stream.id) ?? stream;
 
-            for (const stream of rebalanced) {
-                await this.keitaroService.updateStream(stream.id, {
-                    weight: stream.weight,
-                    state: stream.weight > 0 ? "active" : "disabled",
-                });
-            }
-
-            await this.keitaroService.updateStream(target.id, {
-                weight: 0,
-                state: "disabled",
+                return {
+                    snapshot: this.snapshotStreamState(original),
+                    payload: {
+                        weight: stream.weight,
+                        state: stream.weight > 0 ? "active" : "disabled",
+                    },
+                };
             });
+
+            steps.push({
+                snapshot: this.snapshotStreamState(target),
+                payload: { weight: 0, state: "disabled" },
+            });
+
+            await this.applyStreamUpdatesWithRollback(steps);
         });
     }
 
@@ -281,6 +318,8 @@ export class W2appService {
                 );
             }
 
+            const targetSnapshot = this.snapshotStreamState(target);
+
             if (Number(target.weight ?? 0) <= 0) {
                 target.weight = 1;
             }
@@ -292,13 +331,23 @@ export class W2appService {
                         Number(stream.weight ?? 0) > 0),
             );
             const rebalanced = rebalanceWeights(activeStreams);
+            const originalById = new Map(
+                [...streams.values()].map((stream) => [stream.id, stream]),
+            );
+            const steps: StreamUpdateStep[] = [];
+
             for (const stream of rebalanced) {
                 if (stream.id === target.id) {
                     continue;
                 }
-                await this.keitaroService.updateStream(stream.id, {
-                    weight: stream.weight,
-                    state: stream.weight > 0 ? "active" : "disabled",
+
+                const original = originalById.get(stream.id) ?? stream;
+                steps.push({
+                    snapshot: this.snapshotStreamState(original),
+                    payload: {
+                        weight: stream.weight,
+                        state: stream.weight > 0 ? "active" : "disabled",
+                    },
                 });
             }
 
@@ -306,11 +355,17 @@ export class W2appService {
                 (stream) => stream.id === target.id,
             );
             if (targetRebalanced) {
-                await this.keitaroService.updateStream(target.id, {
-                    weight: targetRebalanced.weight,
-                    state: targetRebalanced.weight > 0 ? "active" : "disabled",
+                steps.push({
+                    snapshot: targetSnapshot,
+                    payload: {
+                        weight: targetRebalanced.weight,
+                        state:
+                            targetRebalanced.weight > 0 ? "active" : "disabled",
+                    },
                 });
             }
+
+            await this.applyStreamUpdatesWithRollback(steps);
         });
     }
 
@@ -375,6 +430,55 @@ export class W2appService {
             throw new BadRequestException(
                 `Regular streams weight must equal 100. Current sum: ${totalWeight}`,
             );
+        }
+    }
+
+    private snapshotStreamState(stream: KeitaroStream): StreamRollbackSnapshot {
+        const weight = Number(stream.weight ?? 0);
+
+        return {
+            id: stream.id,
+            weight,
+            state:
+                typeof stream.state === "string" && stream.state.length > 0
+                    ? stream.state
+                    : weight > 0
+                      ? "active"
+                      : "disabled",
+        };
+    }
+
+    private async applyStreamUpdatesWithRollback(
+        steps: StreamUpdateStep[],
+    ): Promise<void> {
+        const appliedSnapshots: StreamRollbackSnapshot[] = [];
+
+        try {
+            for (const step of steps) {
+                await this.keitaroService.updateStream(
+                    step.snapshot.id,
+                    step.payload,
+                );
+                appliedSnapshots.push(step.snapshot);
+            }
+        } catch (error) {
+            await this.rollbackStreamSnapshots(appliedSnapshots);
+            throw error;
+        }
+    }
+
+    private async rollbackStreamSnapshots(
+        snapshots: StreamRollbackSnapshot[],
+    ): Promise<void> {
+        for (const snapshot of [...snapshots].reverse()) {
+            try {
+                await this.keitaroService.updateStream(snapshot.id, {
+                    weight: snapshot.weight,
+                    state: snapshot.state,
+                });
+            } catch {
+                // Rollback best-effort; primary error is rethrown to the client.
+            }
         }
     }
 

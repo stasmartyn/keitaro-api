@@ -229,6 +229,39 @@ describe("W2appService", () => {
         });
     });
 
+    it("banAppInSplit відкочує вже оновлені streams при збої на target", async () => {
+        keitaroService.getCampaignStreams.mockResolvedValue([
+            {
+                id: 11,
+                type: "regular",
+                comments: "onyx:7ce5adad-b58f-4f9f-b1fe-e8937db55f2f",
+                weight: 60,
+                state: "active",
+            },
+            {
+                id: 12,
+                type: "regular",
+                comments: "onyx:42af4ae8-31cb-4d4f-9412-1dc57749fcbc",
+                weight: 40,
+                state: "active",
+            },
+        ]);
+        keitaroService.updateStream
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error("keitaro unavailable"));
+
+        await expect(
+            service.banAppInSplit(100, {
+                appId: "7ce5adad-b58f-4f9f-b1fe-e8937db55f2f",
+            }),
+        ).rejects.toThrow("keitaro unavailable");
+
+        expect(keitaroService.updateStream).toHaveBeenCalledWith(12, {
+            weight: 40,
+            state: "active",
+        });
+    });
+
     it("banAppInSplit ставить target у 0 і перебалансовує решту", async () => {
         keitaroService.getCampaignStreams.mockResolvedValue([
             {
