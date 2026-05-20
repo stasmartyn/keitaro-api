@@ -1,4 +1,13 @@
-import { Body, Get, Param, ParseIntPipe, Post, Put } from "@nestjs/common";
+import {
+    Body,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+    ParseIntPipe,
+    Post,
+    Put,
+} from "@nestjs/common";
 
 import { VersionController } from "../utils/version.decorator";
 import { BanAppDto } from "./dto/ban-app.dto";
@@ -18,11 +27,12 @@ export class W2appController {
     }
 
     @Put("split-campaign/:id")
+    @HttpCode(HttpStatus.NO_CONTENT)
     async updateSplitCampaign(
         @Param("id", ParseIntPipe) campaignId: number,
         @Body() body: UpdateSplitCampaignDto,
-    ) {
-        return this.w2appService.updateSplitCampaign(campaignId, body);
+    ): Promise<void> {
+        await this.w2appService.updateSplitCampaign(campaignId, body);
     }
 
     @Get("split-campaign/:id")
@@ -31,24 +41,29 @@ export class W2appController {
     }
 
     @Put("split-campaign/:id/disable")
-    async disableSplitCampaign(@Param("id", ParseIntPipe) campaignId: number) {
-        return this.w2appService.disableSplitCampaign(campaignId);
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async disableSplitCampaign(
+        @Param("id", ParseIntPipe) campaignId: number,
+    ): Promise<void> {
+        await this.w2appService.disableSplitCampaign(campaignId);
     }
 
     @Post("split-campaign/:id/ban-app")
+    @HttpCode(HttpStatus.NO_CONTENT)
     async banAppInSplit(
         @Param("id", ParseIntPipe) campaignId: number,
         @Body() body: BanAppDto,
-    ) {
-        return this.w2appService.banAppInSplit(campaignId, body);
+    ): Promise<void> {
+        await this.w2appService.banAppInSplit(campaignId, body);
     }
 
     @Post("split-campaign/:id/unban-app")
+    @HttpCode(HttpStatus.NO_CONTENT)
     async unbanAppInSplit(
         @Param("id", ParseIntPipe) campaignId: number,
         @Body() body: BanAppDto,
-    ) {
-        return this.w2appService.unbanAppInSplit(campaignId, body);
+    ): Promise<void> {
+        await this.w2appService.unbanAppInSplit(campaignId, body);
     }
 
     @Post("naming-campaign")
@@ -57,15 +72,19 @@ export class W2appController {
     }
 
     @Put("naming-campaign/:id")
+    @HttpCode(HttpStatus.NO_CONTENT)
     async updateNamingCampaign(
         @Param("id", ParseIntPipe) campaignId: number,
         @Body() body: UpdateNamingCampaignDto,
-    ) {
-        return this.w2appService.updateNamingCampaign(campaignId, body);
+    ): Promise<void> {
+        await this.w2appService.updateNamingCampaign(campaignId, body);
     }
 
     @Put("naming-campaign/:id/disable")
-    async disableNamingCampaign(@Param("id", ParseIntPipe) campaignId: number) {
-        return this.w2appService.disableNamingCampaign(campaignId);
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async disableNamingCampaign(
+        @Param("id", ParseIntPipe) campaignId: number,
+    ): Promise<void> {
+        await this.w2appService.disableNamingCampaign(campaignId);
     }
 }

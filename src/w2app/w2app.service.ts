@@ -257,17 +257,17 @@ export class W2appService {
             );
             const rebalanced = rebalanceWeights(activeOthers);
 
-            await this.keitaroService.updateStream(target.id, {
-                weight: 0,
-                state: "disabled",
-            });
-
             for (const stream of rebalanced) {
                 await this.keitaroService.updateStream(stream.id, {
                     weight: stream.weight,
                     state: stream.weight > 0 ? "active" : "disabled",
                 });
             }
+
+            await this.keitaroService.updateStream(target.id, {
+                weight: 0,
+                state: "disabled",
+            });
         });
     }
 
@@ -293,9 +293,22 @@ export class W2appService {
             );
             const rebalanced = rebalanceWeights(activeStreams);
             for (const stream of rebalanced) {
+                if (stream.id === target.id) {
+                    continue;
+                }
                 await this.keitaroService.updateStream(stream.id, {
                     weight: stream.weight,
                     state: stream.weight > 0 ? "active" : "disabled",
+                });
+            }
+
+            const targetRebalanced = rebalanced.find(
+                (stream) => stream.id === target.id,
+            );
+            if (targetRebalanced) {
+                await this.keitaroService.updateStream(target.id, {
+                    weight: targetRebalanced.weight,
+                    state: targetRebalanced.weight > 0 ? "active" : "disabled",
                 });
             }
         });

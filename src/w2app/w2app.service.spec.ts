@@ -190,6 +190,45 @@ describe("W2appService", () => {
         ).rejects.toThrow(BadRequestException);
     });
 
+    it("updateSplitCampaign оновлює існуючі streams і вимикає відсутні в dto", async () => {
+        keitaroService.getCampaignStreams.mockResolvedValue([
+            {
+                id: 1,
+                type: "regular",
+                comments: "onyx:aaa",
+                weight: 50,
+                position: 1,
+            },
+            {
+                id: 2,
+                type: "regular",
+                comments: "onyx:bbb",
+                weight: 50,
+                position: 2,
+            },
+        ]);
+
+        await service.updateSplitCampaign(10, {
+            apps: [
+                {
+                    appId: "aaa",
+                    offerId: 1,
+                    weight: 100,
+                    streamName: "A",
+                },
+            ],
+        });
+
+        expect(keitaroService.updateStream).toHaveBeenCalledWith(
+            1,
+            expect.objectContaining({ weight: 100 }),
+        );
+        expect(keitaroService.updateStream).toHaveBeenCalledWith(2, {
+            state: "disabled",
+            weight: 0,
+        });
+    });
+
     it("banAppInSplit ставить target у 0 і перебалансовує решту", async () => {
         keitaroService.getCampaignStreams.mockResolvedValue([
             {
@@ -212,13 +251,13 @@ describe("W2appService", () => {
             appId: "7ce5adad-b58f-4f9f-b1fe-e8937db55f2f",
         });
 
-        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(1, 11, {
-            weight: 0,
-            state: "disabled",
-        });
-        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(2, 12, {
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(1, 12, {
             weight: 100,
             state: "active",
+        });
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(2, 11, {
+            weight: 0,
+            state: "disabled",
         });
     });
 
@@ -252,12 +291,12 @@ describe("W2appService", () => {
         });
 
         expect(keitaroService.updateStream).toHaveBeenCalledTimes(2);
-        expect(keitaroService.updateStream).toHaveBeenCalledWith(21, {
-            weight: 1,
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(1, 22, {
+            weight: 99,
             state: "active",
         });
-        expect(keitaroService.updateStream).toHaveBeenCalledWith(22, {
-            weight: 99,
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(2, 21, {
+            weight: 1,
             state: "active",
         });
     });
@@ -293,6 +332,14 @@ describe("W2appService", () => {
                 }),
             }),
         );
+    });
+
+    it("disableSplitCampaign вимикає кампанію", async () => {
+        await service.disableSplitCampaign(904);
+
+        expect(keitaroService.updateCampaign).toHaveBeenCalledWith(904, {
+            state: "disabled",
+        });
     });
 
     it("disableNamingCampaign вимикає кампанію", async () => {

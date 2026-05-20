@@ -12,13 +12,11 @@ export function mapKeitaroErrorToHttpException(error: unknown): Error {
 
     if (axios.isAxiosError(error)) {
         const status = error.response?.status ?? HttpStatus.BAD_GATEWAY;
-        const upstreamBody = error.response?.data;
 
         return new HttpException(
             {
                 message: "Keitaro Admin API error",
                 keitaroStatus: status,
-                error: upstreamBody ?? error.message,
             },
             status >= 400 && status < 600 ? status : HttpStatus.BAD_GATEWAY,
         );
