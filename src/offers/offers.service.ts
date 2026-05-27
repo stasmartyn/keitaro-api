@@ -282,15 +282,24 @@ export class OffersService {
             affiliate_network_id,
         } = body;
 
+        if (!affiliate_network_id) {
+            throw new BadRequestException(
+                "affiliate_network_id is required for Web2App offer creation.",
+            );
+        }
+
+        if (!offer_group_id) {
+            throw new BadRequestException(
+                "offer_group_id is required for Web2App offer creation.",
+            );
+        }
+
         const offerName = `${attribution_type} ${bundle_id} (${app_name})`;
-        const defaultAffiliateNetworkId =
-            attribution_type === "affise" ? 596 : 443;
         const offerParams = this.buildOfferParams({
             name: offerName,
             action_payload: attribution_link,
-            affiliate_network_id:
-                affiliate_network_id || defaultAffiliateNetworkId,
-            group_id: offer_group_id || 10,
+            affiliate_network_id,
+            group_id: offer_group_id,
         });
 
         return await this.keitaroService.createOffer(offerParams);
