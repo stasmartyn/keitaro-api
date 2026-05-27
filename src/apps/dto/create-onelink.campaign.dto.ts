@@ -1,9 +1,8 @@
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateOnelinkCampaignDto {
-    @IsString()
     @IsNotEmpty()
-    offer_id: string;
+    offer_id: string | number;
 
     @IsNotEmpty()
     @IsString()

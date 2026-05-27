@@ -579,61 +579,158 @@ export class AppsService {
 
         const landingId = onelink_landing_id || 363;
         const groupId = campaign_group_id || 40;
+        const offerId = Number(offer_id);
+        const campaignName = `Applink ${bundle_id} (${app_name})`;
 
-        const alias = this.generateUniqueAlias();
-        while (true) {
-            const campaignData: ICampaignCreate = {
-                name: `Onelink ${bundle_id} (${app_name})`,
-                alias,
-                traffic_source_id: 0,
-                group_id: groupId,
-            };
-
-            const createCampaignResponse: ICampaign =
-                await this.keitaroClient.createCampaign(campaignData, true);
-
-            const streamData: IStreamCreate = {
-                type: "regular",
-                name: "Flow 2",
-                campaign_id: createCampaignResponse.id,
-                position: 1,
-                action_options: null,
-                comments: "",
-                state: "active",
-                action_type: "http",
-                action_payload: "",
-                schema: "landings",
-                collect_clicks: true,
-                filter_or: false,
-                weight: 100,
-                offer_selection: "before_click",
-                filters: [],
-                triggers: [],
-                landings: [
-                    {
-                        landing_id: landingId,
-                        state: "active",
-                        share: 100,
-                    },
-                ],
-                offers: [
-                    {
-                        offer_id: Number(offer_id),
-                        state: "active",
-                        share: 100,
-                    },
-                ],
-            };
-
-            await this.keitaroClient.createStream(
-                createCampaignResponse.id,
-                streamData,
+        const existingCampaign = await this.findCampaignByName(campaignName);
+        if (existingCampaign) {
+            await this.ensureOnelinkStream(
+                existingCampaign.id,
+                offerId,
+                landingId,
             );
 
             return {
-                id: createCampaignResponse.id,
+                id: existingCampaign.id,
             };
         }
+
+        let alias = this.generateUniqueAlias();
+        while (true) {
+            try {
+                const campaignData: ICampaignCreate = {
+                    name: campaignName,
+                    alias,
+                    traffic_source_id: 0,
+                    group_id: groupId,
+                };
+
+                const createCampaignResponse: ICampaign =
+                    await this.keitaroClient.createCampaign(campaignData, true);
+
+                await this.ensureOnelinkStream(
+                    createCampaignResponse.id,
+                    offerId,
+                    landingId,
+                );
+
+                return {
+                    id: createCampaignResponse.id,
+                };
+            } catch (error) {
+                if (error?.response?.data?.alias?.length) {
+                    alias = this.generateUniqueAlias();
+                    continue;
+                }
+
+                if (this.isDuplicateNameError(error)) {
+                    const duplicateCampaign =
+                        await this.findCampaignByName(campaignName);
+                    if (duplicateCampaign) {
+                        await this.ensureOnelinkStream(
+                            duplicateCampaign.id,
+                            offerId,
+                            landingId,
+                        );
+
+                        return {
+                            id: duplicateCampaign.id,
+                        };
+                    }
+                }
+
+                throw error;
+            }
+        }
+    }
+
+    private async findCampaignByName(name: string): Promise<ICampaign | null> {
+        const normalizedName = name.trim().toLowerCase();
+        if (!normalizedName) {
+            return null;
+        }
+
+        const campaigns = await this.keitaroClient.getAllCampaigns();
+        if (!Array.isArray(campaigns)) {
+            return null;
+        }
+
+        return (
+            campaigns.find((campaign: ICampaign) => {
+                const campaignName =
+                    typeof campaign?.name === "string"
+                        ? campaign.name.trim().toLowerCase()
+                        : "";
+                return campaignName === normalizedName;
+            }) ?? null
+        );
+    }
+
+    private async ensureOnelinkStream(
+        campaignId: number,
+        offerId: number,
+        landingId: number,
+    ) {
+        const streams = await this.keitaroClient.getCampaignStreams(campaignId);
+        const hasOffer = Array.isArray(streams)
+            ? streams.some(
+                  (stream: any) =>
+                      Array.isArray(stream?.offers) &&
+                      stream.offers.some(
+                          (offer: any) =>
+                              Number(offer?.offer_id) === Number(offerId),
+                      ),
+              )
+            : false;
+
+        if (hasOffer) {
+            return;
+        }
+
+        const streamData: IStreamCreate = {
+            type: "regular",
+            name: "Flow 2",
+            campaign_id: campaignId,
+            position: 1,
+            action_options: null,
+            comments: "",
+            state: "active",
+            action_type: "http",
+            action_payload: "",
+            schema: "landings",
+            collect_clicks: true,
+            filter_or: false,
+            weight: 100,
+            offer_selection: "before_click",
+            filters: [],
+            triggers: [],
+            landings: [
+                {
+                    landing_id: landingId,
+                    state: "active",
+                    share: 100,
+                },
+            ],
+            offers: [
+                {
+                    offer_id: Number(offerId),
+                    state: "active",
+                    share: 100,
+                },
+            ],
+        };
+
+        await this.keitaroClient.createStream(campaignId, streamData);
+    }
+
+    private isDuplicateNameError(error: unknown): boolean {
+        const message =
+            error instanceof Error ? error.message : JSON.stringify(error);
+
+        return (
+            /name/i.test(message) &&
+            /(already\s+(used|exists)|taken|unique)/i.test(message)
+        );
     }
 
     private async createByOfferInternal(body: CreateByOfferDto) {
