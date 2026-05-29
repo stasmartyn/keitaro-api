@@ -74,13 +74,13 @@ export class CreateSingleOfferDto {
     @IsNotEmpty()
     attribution_link: string;
 
-    @IsOptional()
     @IsNumber()
-    offer_group_id?: number;
+    @IsNotEmpty()
+    offer_group_id: number;
 
-    @IsOptional()
     @IsNumber()
-    affiliate_network_id?: number;
+    @IsNotEmpty()
+    affiliate_network_id: number;
 }
 
 export class CreateSingleOfferAppLinkDto {

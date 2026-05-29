@@ -9,6 +9,47 @@ interface ErrorContext {
     additionalData?: any;
 }
 
+function extractUnderlyingErrorDetail(
+    error: unknown,
+    responseData?: unknown,
+): string | null {
+    if (error instanceof AxiosError) {
+        const data = responseData ?? error.response?.data;
+
+        if (typeof data === "string" && data.trim() !== "") {
+            return data.trim();
+        }
+
+        if (data && typeof data === "object") {
+            const record = data as Record<string, unknown>;
+
+            for (const key of ["message", "error", "errors"]) {
+                const value = record[key];
+
+                if (typeof value === "string" && value.trim() !== "") {
+                    const trimmed = value.trim();
+                    if (!trimmed.startsWith("Error in ")) {
+                        return trimmed;
+                    }
+                }
+
+                if (Array.isArray(value) && value.length > 0) {
+                    return value.map(String).join(", ");
+                }
+            }
+        }
+    }
+
+    if (error instanceof Error && error.message.trim() !== "") {
+        const trimmed = error.message.trim();
+        if (!trimmed.startsWith("Error in ")) {
+            return trimmed;
+        }
+    }
+
+    return null;
+}
+
 export function wrapWithErrorHandler<T extends any[], R>(
     fn: (...args: T) => Promise<R>,
     context: ErrorContext,
@@ -62,7 +103,13 @@ export function wrapWithErrorHandler<T extends any[], R>(
                 timestamp: new Date().toISOString(),
             };
 
-            const errorMessage = `Error in ${functionNameOnly}`;
+            const underlyingDetail = extractUnderlyingErrorDetail(
+                error,
+                responseData,
+            );
+            const errorMessage = underlyingDetail
+                ? `Error in ${functionNameOnly}: ${underlyingDetail}`
+                : `Error in ${functionNameOnly}`;
 
             Logger.error(errorMessage, errorData, "ErrorWrapper");
 

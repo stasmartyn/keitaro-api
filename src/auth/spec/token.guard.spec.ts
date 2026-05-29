@@ -7,6 +7,21 @@ import { Logger } from "../../utils/logger";
 
 jest.spyOn(Logger, "error").mockImplementation(() => {});
 
+const makeContext = (authorization?: string): ExecutionContext => {
+    const handler = jest.fn();
+    class TestController {}
+
+    return {
+        getHandler: () => handler,
+        getClass: () => TestController,
+        switchToHttp: () => ({
+            getRequest: () => ({
+                headers: authorization ? { authorization } : {},
+            }),
+        }),
+    } as unknown as ExecutionContext;
+};
+
 describe("TokenGuard", () => {
     let guard: TokenGuard;
     let configService: jest.Mocked<ConfigService>;
@@ -43,15 +58,7 @@ describe("TokenGuard", () => {
             const validToken = "valid-token";
             configService.get.mockReturnValue(validToken);
 
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {
-                            authorization: `Bearer ${validToken}`,
-                        },
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext(`Bearer ${validToken}`);
 
             const result = guard.canActivate(context);
 
@@ -60,13 +67,7 @@ describe("TokenGuard", () => {
         });
 
         it("should deny access without authorization header", () => {
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {},
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext();
 
             expect(() => guard.canActivate(context)).toThrow(
                 UnauthorizedException,
@@ -81,15 +82,7 @@ describe("TokenGuard", () => {
             const invalidToken = "invalid-token";
             configService.get.mockReturnValue(validToken);
 
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {
-                            authorization: `Bearer ${invalidToken}`,
-                        },
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext(`Bearer ${invalidToken}`);
 
             expect(() => guard.canActivate(context)).toThrow(
                 UnauthorizedException,
@@ -101,15 +94,7 @@ describe("TokenGuard", () => {
             const validToken = "valid-token";
             configService.get.mockReturnValue(validToken);
 
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {
-                            authorization: `Bearer ${validToken}extra`,
-                        },
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext(`Bearer ${validToken}extra`);
 
             expect(() => guard.canActivate(context)).toThrow(
                 UnauthorizedException,
@@ -121,15 +106,7 @@ describe("TokenGuard", () => {
             const validToken = "valid-token";
             configService.get.mockReturnValue(validToken);
 
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {
-                            authorization: "Bearer ",
-                        },
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext("Bearer ");
 
             expect(() => guard.canActivate(context)).toThrow(
                 UnauthorizedException,
@@ -140,15 +117,7 @@ describe("TokenGuard", () => {
         it("should handle case when config service returns null", () => {
             configService.get.mockReturnValue(null);
 
-            const context = {
-                switchToHttp: () => ({
-                    getRequest: () => ({
-                        headers: {
-                            authorization: "Bearer any-token",
-                        },
-                    }),
-                }),
-            } as ExecutionContext;
+            const context = makeContext("Bearer any-token");
 
             expect(() => guard.canActivate(context)).toThrow(
                 UnauthorizedException,

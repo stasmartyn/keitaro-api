@@ -1,4 +1,5 @@
 import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app/app.module";
 import { Logger } from "./utils/logger";
 import { Request, Response, NextFunction } from "express";
@@ -28,6 +29,13 @@ async function bootstrap() {
     });
 
     app.setGlobalPrefix("api");
+    app.useGlobalPipes(
+        new ValidationPipe({
+            transform: true,
+            whitelist: true,
+            forbidNonWhitelisted: true,
+        }),
+    );
 
     await app.listen(port);
     Logger.info("Application is running", { port, prefix: "api" }, "Bootstrap");

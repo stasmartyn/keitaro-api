@@ -63,6 +63,10 @@ export default () => ({
         // Pagination
         campaignsPageSize: parseInt(process.env.CAMPAIGNS_PAGE_SIZE, 10) || 100,
     },
+    w2app: {
+        campaignGroupId: parseInt(process.env.W2APP_CAMPAIGN_GROUP_ID, 10) || 0,
+        namingGroupId: parseInt(process.env.W2APP_NAMING_GROUP_ID, 10) || 0,
+    },
     redis: {
         host: process.env.REDIS_HOST || "localhost",
         port: parseInt(process.env.REDIS_PORT, 10) || 6379,
