@@ -13,6 +13,7 @@ import { CopyCampaignDto } from "../dto/copy-campaign.dto";
 import { CreateByOfferDto } from "../dto/create-by-offer.dto";
 import { CreateOnelinkCampaignDto } from "../dto/create-onelink.campaign.dto";
 import { CreateAppResultInterface } from "../interfaces/create-app-result.interface";
+import { QueueService } from "../../queue/queue.service";
 
 describe("AppsService", () => {
     let service: AppsService;
@@ -107,10 +108,12 @@ describe("AppsService", () => {
             createCampaign: jest.fn(),
             copyCampaign: jest.fn(),
             updateCampaign: jest.fn(),
+            updateDefaultFlowWithOrgCampaign: jest.fn(),
             createCLOCampaignStreams: jest.fn(),
             createORGCampaignStreams: jest.fn(),
             deleteResource: jest.fn(),
             getOfferById: jest.fn(),
+            getCampaignStreams: jest.fn(),
             createStream: jest.fn(),
         };
 
@@ -136,6 +139,12 @@ describe("AppsService", () => {
                 {
                     provide: ConfigService,
                     useValue: mockConfigService,
+                },
+                {
+                    provide: QueueService,
+                    useValue: {
+                        getNamingSharingQueue: jest.fn(),
+                    },
                 },
             ],
         }).compile();
@@ -375,7 +384,9 @@ describe("AppsService", () => {
         };
 
         it("should create onelink campaign successfully", async () => {
+            keitaroService.getAllCampaigns.mockResolvedValue([]);
             keitaroService.createCampaign.mockResolvedValue(mockCampaign);
+            keitaroService.getCampaignStreams.mockResolvedValue([]);
             keitaroService.createStream.mockResolvedValue(mockStream);
 
             const result = await service.createOnelinkCampaign(
@@ -409,15 +420,20 @@ describe("AppsService", () => {
                 },
             };
 
+            keitaroService.getAllCampaigns.mockResolvedValue([]);
             keitaroService.createCampaign
                 .mockRejectedValueOnce(aliasConflictError)
                 .mockResolvedValueOnce(mockCampaign);
+            keitaroService.getCampaignStreams.mockResolvedValue([]);
             keitaroService.createStream.mockResolvedValue(mockStream);
 
-            await expect(
-                service.createOnelinkCampaign(createOnelinkCampaignDto),
-            ).rejects.toEqual(aliasConflictError);
-            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(1);
+            const result = await service.createOnelinkCampaign(
+                createOnelinkCampaignDto,
+            );
+
+            expect(result).toBeDefined();
+            expect((result as any).id).toBe(mockCampaign.id);
+            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(2);
         });
 
         it("should handle duplicate alias error", async () => {
@@ -430,14 +446,20 @@ describe("AppsService", () => {
                 },
             };
 
-            keitaroService.createCampaign.mockRejectedValue(
-                duplicateAliasError,
+            keitaroService.getAllCampaigns.mockResolvedValue([]);
+            keitaroService.createCampaign
+                .mockRejectedValueOnce(duplicateAliasError)
+                .mockResolvedValueOnce(mockCampaign);
+            keitaroService.getCampaignStreams.mockResolvedValue([]);
+            keitaroService.createStream.mockResolvedValue(mockStream);
+
+            const result = await service.createOnelinkCampaign(
+                createOnelinkCampaignDto,
             );
 
-            await expect(
-                service.createOnelinkCampaign(createOnelinkCampaignDto),
-            ).rejects.toEqual(duplicateAliasError);
-            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(1);
+            expect(result).toBeDefined();
+            expect((result as any).id).toBe(mockCampaign.id);
+            expect(keitaroService.createCampaign).toHaveBeenCalledTimes(2);
         });
     });
 });

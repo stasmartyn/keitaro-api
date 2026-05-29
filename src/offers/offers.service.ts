@@ -295,6 +295,11 @@ export class OffersService {
         }
 
         const offerName = `${attribution_type} ${bundle_id} (${app_name})`;
+        const existingOffer = await this.findOfferByName(offerName);
+        if (existingOffer) {
+            return existingOffer;
+        }
+
         const offerParams = this.buildOfferParams({
             name: offerName,
             action_payload: attribution_link,
@@ -302,7 +307,46 @@ export class OffersService {
             group_id: offer_group_id,
         });
 
-        return await this.keitaroService.createOffer(offerParams);
+        try {
+            return await this.keitaroService.createOffer(offerParams);
+        } catch (error) {
+            if (this.isDuplicateNameError(error)) {
+                const duplicateOffer = await this.findOfferByName(offerName);
+                if (duplicateOffer) {
+                    return duplicateOffer;
+                }
+            }
+
+            throw error;
+        }
+    }
+
+    private async findOfferByName(name: string): Promise<IOffer | null> {
+        const normalizedName = name.trim().toLowerCase();
+        if (!normalizedName) {
+            return null;
+        }
+
+        const offers = await this.keitaroService.getOffers();
+        return (
+            offers.find((offer: IOffer) => {
+                const offerName =
+                    typeof offer?.name === "string"
+                        ? offer.name.trim().toLowerCase()
+                        : "";
+                return offerName === normalizedName;
+            }) ?? null
+        );
+    }
+
+    private isDuplicateNameError(error: unknown): boolean {
+        const message =
+            error instanceof Error ? error.message : JSON.stringify(error);
+
+        return (
+            /name/i.test(message) &&
+            /(already\s+(used|exists)|taken|unique)/i.test(message)
+        );
     }
 
     private async createSingleOfferAppLinkInternal(
