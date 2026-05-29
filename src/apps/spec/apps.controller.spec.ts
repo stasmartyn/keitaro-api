@@ -268,7 +268,7 @@ describe("AppsController", () => {
 
     describe("POST /v1/apps/create-onelink-campaign", () => {
         const createOnelinkCampaignDto: CreateOnelinkCampaignDto = {
-            offer_id: "123",
+            offer_id: 123,
             bundle_id: "com.test.app",
             app_name: "Test App",
         };

@@ -577,9 +577,14 @@ export class AppsService {
             throw new BadRequestException("Missing required fields.");
         }
 
-        const landingId = onelink_landing_id || 363;
-        const groupId = campaign_group_id || 40;
+        const landingId = onelink_landing_id ?? 363;
+        const groupId = campaign_group_id ?? 40;
         const offerId = Number(offer_id);
+        if (!Number.isInteger(offerId) || offerId <= 0) {
+            throw new BadRequestException(
+                "offer_id must be a positive integer.",
+            );
+        }
         const campaignName = `Applink ${bundle_id} (${app_name})`;
 
         const existingCampaign = await this.findCampaignByName(campaignName);

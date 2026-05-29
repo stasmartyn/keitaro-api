@@ -378,7 +378,7 @@ describe("AppsService", () => {
 
     describe("createOnelinkCampaign", () => {
         const createOnelinkCampaignDto: CreateOnelinkCampaignDto = {
-            offer_id: "123",
+            offer_id: 123,
             bundle_id: "com.test.app",
             app_name: "Test App",
         };
@@ -404,11 +404,26 @@ describe("AppsService", () => {
                 offer_id: "",
                 bundle_id: "",
                 app_name: "",
-            } as CreateOnelinkCampaignDto;
+            } as unknown as CreateOnelinkCampaignDto;
 
             await expect(
                 service.createOnelinkCampaign(invalidDto),
             ).rejects.toThrow(BadRequestException);
+        });
+
+        it("should reject non-numeric offer_id before calling Keitaro", async () => {
+            const invalidDto = {
+                offer_id: "not-a-number",
+                bundle_id: "com.test.app",
+                app_name: "Test App",
+            } as unknown as CreateOnelinkCampaignDto;
+
+            await expect(
+                service.createOnelinkCampaign(invalidDto),
+            ).rejects.toThrow("offer_id must be a positive integer.");
+
+            expect(keitaroService.createCampaign).not.toHaveBeenCalled();
+            expect(keitaroService.createStream).not.toHaveBeenCalled();
         });
 
         it("should handle alias conflict and retry", async () => {

@@ -326,6 +326,50 @@ describe("W2appService", () => {
         });
     });
 
+    it("banAppInSplit не активує disabled streams з ненульовою вагою", async () => {
+        keitaroService.getCampaignStreams.mockResolvedValue([
+            {
+                id: 11,
+                type: "regular",
+                comments: "onyx:7ce5adad-b58f-4f9f-b1fe-e8937db55f2f",
+                weight: 60,
+                state: "active",
+            },
+            {
+                id: 12,
+                type: "regular",
+                comments: "onyx:42af4ae8-31cb-4d4f-9412-1dc57749fcbc",
+                weight: 40,
+                state: "disabled",
+            },
+            {
+                id: 13,
+                type: "regular",
+                comments: "onyx:6ca61a13-ac03-4c5e-8b4f-d9e56a3960b5",
+                weight: 40,
+                state: "active",
+            },
+        ]);
+
+        await service.banAppInSplit(100, {
+            appId: "7ce5adad-b58f-4f9f-b1fe-e8937db55f2f",
+        });
+
+        expect(keitaroService.updateStream).toHaveBeenCalledTimes(2);
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(1, 13, {
+            weight: 100,
+            state: "active",
+        });
+        expect(keitaroService.updateStream).toHaveBeenNthCalledWith(2, 11, {
+            weight: 0,
+            state: "disabled",
+        });
+        expect(keitaroService.updateStream).not.toHaveBeenCalledWith(
+            12,
+            expect.anything(),
+        );
+    });
+
     it("unbanAppInSplit ребалансує лише активні + target", async () => {
         keitaroService.getCampaignStreams.mockResolvedValue([
             {

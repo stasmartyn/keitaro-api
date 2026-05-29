@@ -1,8 +1,18 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import {
+    IsInt,
+    IsNotEmpty,
+    IsNumber,
+    IsOptional,
+    IsString,
+    Min,
+} from "class-validator";
 
 export class CreateOnelinkCampaignDto {
-    @IsNotEmpty()
-    offer_id: string | number;
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    offer_id: number;
 
     @IsNotEmpty()
     @IsString()

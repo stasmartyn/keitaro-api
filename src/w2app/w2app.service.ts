@@ -287,7 +287,9 @@ export class W2appService {
 
             const activeOthers = [...streams.values()].filter(
                 (stream) =>
-                    stream.id !== target.id && Number(stream.weight ?? 0) > 0,
+                    stream.id !== target.id &&
+                    stream.state === "active" &&
+                    Number(stream.weight ?? 0) > 0,
             );
             const rebalanced = rebalanceWeights(activeOthers);
             const originalById = new Map(

@@ -211,6 +211,8 @@ describe("OffersController", () => {
             bundle_id: "com.test.app",
             attribution_type: "firebase",
             attribution_link: "https://test.com",
+            offer_group_id: 10,
+            affiliate_network_id: 596,
         };
 
         it("should create single offer successfully", async () => {
