@@ -9,7 +9,7 @@ export class SplitCampaignAppDto {
     offerId: number;
 
     @IsInt()
-    @Min(0)
+    @Min(1)
     @Max(100)
     weight: number;
 
