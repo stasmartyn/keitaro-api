@@ -433,10 +433,15 @@ export class W2appService {
             );
         }
 
-        const totalWeight = apps.reduce((acc, app) => acc + app.weight, 0);
-        if (totalWeight !== 100) {
+        const appWithInvalidWeight = apps.find(
+            (app) =>
+                !Number.isInteger(app.weight) ||
+                app.weight < 1 ||
+                app.weight > 100,
+        );
+        if (appWithInvalidWeight) {
             throw new BadRequestException(
-                `Regular streams weight must equal 100. Current sum: ${totalWeight}`,
+                "Regular stream weight must be an integer between 1 and 100",
             );
         }
     }

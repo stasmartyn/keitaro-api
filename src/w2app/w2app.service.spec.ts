@@ -170,20 +170,65 @@ describe("W2appService", () => {
         });
     });
 
-    it("updateSplitCampaign валідує суму ваг", async () => {
+    it("updateSplitCampaign дозволяє кожній app мати weight 100 незалежно від суми", async () => {
+        keitaroService.getCampaignStreams.mockResolvedValue([
+            {
+                id: 1,
+                type: "regular",
+                comments: "onyx:ec95faf9-abeb-40cc-9b81-c58cc81a5cf6",
+                weight: 50,
+                position: 1,
+            },
+            {
+                id: 2,
+                type: "regular",
+                comments: "onyx:f88f8dfd-a8a2-4e1c-b2f7-f6a1d10a17f1",
+                weight: 50,
+                position: 2,
+            },
+        ]);
+
+        await service.updateSplitCampaign(10, {
+            apps: [
+                {
+                    appId: "ec95faf9-abeb-40cc-9b81-c58cc81a5cf6",
+                    offerId: 1,
+                    weight: 100,
+                    streamName: "A",
+                },
+                {
+                    appId: "f88f8dfd-a8a2-4e1c-b2f7-f6a1d10a17f1",
+                    offerId: 2,
+                    weight: 100,
+                    streamName: "B",
+                },
+            ],
+        });
+
+        expect(keitaroService.updateStream).toHaveBeenCalledWith(
+            1,
+            expect.objectContaining({ weight: 100 }),
+        );
+        expect(keitaroService.updateStream).toHaveBeenCalledWith(
+            2,
+            expect.objectContaining({ weight: 100 }),
+        );
+    });
+
+    it("updateSplitCampaign відхиляє app weight поза діапазоном 1-100", async () => {
         await expect(
             service.updateSplitCampaign(10, {
                 apps: [
                     {
                         appId: "ec95faf9-abeb-40cc-9b81-c58cc81a5cf6",
                         offerId: 1,
-                        weight: 30,
+                        weight: 0,
                         streamName: "A",
                     },
                     {
                         appId: "f88f8dfd-a8a2-4e1c-b2f7-f6a1d10a17f1",
                         offerId: 2,
-                        weight: 30,
+                        weight: 100,
                         streamName: "B",
                     },
                 ],
