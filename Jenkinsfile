@@ -37,6 +37,7 @@ pipeline {
 
         TELEGRAM_BOT_TOKEN = credentials('TELEGRAM_BOT_TOKEN')
         TELEGRAM_CHAT_ID   = credentials('TELEGRAM_CHAT_ID')
+        TELEGRAM_THREAD_ID = credentials('TELEGRAM_THREAD_ID')
 
         TRIVY_IMAGE = "aquasec/trivy:${env.TRIVY_IMAGE_TAG ?: '0.70.0'}"
         TRIVY_CACHE_DIR = '/tmp/trivy-cache'
@@ -281,6 +282,7 @@ pipeline {
                 sh """
                     curl -s -X POST https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage \
                     -d chat_id=${env.TELEGRAM_CHAT_ID} \
+                    -d message_thread_id=${env.TELEGRAM_THREAD_ID} \
                     -d parse_mode=Markdown \
                     --data-urlencode text="${message}"
                 """
@@ -305,6 +307,7 @@ pipeline {
                 sh """
                     curl -s -X POST https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage \
                     -d chat_id=${env.TELEGRAM_CHAT_ID} \
+                    -d message_thread_id=${env.TELEGRAM_THREAD_ID} \
                     -d parse_mode=Markdown \
                     --data-urlencode text="${message}"
                 """
