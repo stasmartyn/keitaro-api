@@ -158,6 +158,11 @@ export class OffersService {
                 linkTemplate ??
                 `https://${domain}/{sub9}?sub2={sub2}&sub3={sub3}&sub4={sub4}&sub5={sub5}&sub6={sub6}&sub7={sub7}&sub8={sub8}&sub9={sub9}&external_id={subid}&bundle_id={bundle_id}&naming={naming}`,
             state: "active",
+            payout_value: 0,
+            payout_currency: "USD",
+            payout_type: "CPA",
+            payout_auto: true,
+            payout_upsell: false,
         };
 
         return await this.keitaroService.createRentOffer(offerParams);
