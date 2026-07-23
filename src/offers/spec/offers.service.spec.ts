@@ -21,6 +21,7 @@ describe("OffersService", () => {
             deleteResource: jest.fn(),
             getAffiliateNetworkById: jest.fn(),
             createOffer: jest.fn(),
+            createRentOffer: jest.fn(),
             getOfferById: jest.fn(),
             updateOffer: jest.fn(),
         };
@@ -63,6 +64,30 @@ describe("OffersService", () => {
             keitaroService.getOffers.mockRejectedValue(error);
 
             await expect(service.getOffers()).rejects.toThrow();
+        });
+    });
+
+    describe("createRentOffer", () => {
+        it("should create rent offer with payout from postback param enabled", async () => {
+            const mockOffer = { id: 12345, name: "Rent Offer" };
+
+            keitaroService.createRentOffer.mockResolvedValue(mockOffer);
+
+            const result = await service.createRentOffer({
+                name: "Demo",
+                domain: "track.example.com",
+            });
+
+            expect(keitaroService.createRentOffer).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    payout_value: 0,
+                    payout_currency: "USD",
+                    payout_type: "CPA",
+                    payout_auto: true,
+                    payout_upsell: false,
+                }),
+            );
+            expect(result).toEqual(mockOffer);
         });
     });
 
