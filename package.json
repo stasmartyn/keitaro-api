@@ -31,7 +31,7 @@
         "@nestjs/platform-socket.io": "^11.1.24",
         "@nestjs/throttler": "^6.5.0",
         "@nestjs/websockets": "^11.1.24",
-        "axios": "^1.16.1",
+        "axios": "^1.18.0",
         "bullmq": "^5.66.5",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.14.2",
@@ -43,7 +43,7 @@
         "pino-pretty": "^13.1.1",
         "reflect-metadata": "^0.2.0",
         "rxjs": "^7.8.1",
-        "socket.io": "^4.7.2"
+        "socket.io": "^4.8.3"
     },
     "overrides": {
         "form-data": "4.0.6",
@@ -54,7 +54,11 @@
         "qs": "6.15.2",
         "uuid": "11.1.1",
         "webpack": "5.106.2",
-        "ws": "8.21.0"
+        "ws": "8.21.0",
+        "brace-expansion": "2.1.2",
+        "engine.io": "6.6.7",
+        "fast-uri": "3.1.4",
+        "js-yaml": "4.3.0"
     },
     "devDependencies": {
         "@nestjs/cli": "^11.0.21",
